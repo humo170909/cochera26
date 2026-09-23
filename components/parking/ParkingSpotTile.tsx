@@ -15,12 +15,15 @@ export function ParkingSpotTile({
 }) {
   const isFree = spot.status === "LIBRE";
   const isAuthorized = !isFree && !!spot.activeEntry?.isAuthorized;
+  const isReserved = isFree && !!spot.reservedFor;
 
-  const toneClasses = isFree
-    ? "border-success/30 bg-success-bg text-success"
-    : isAuthorized
-      ? "border-purple/30 bg-purple-bg text-purple"
-      : "border-danger/30 bg-danger-bg text-danger";
+  const toneClasses = isReserved
+    ? "border-info/30 bg-info-bg text-info"
+    : isFree
+      ? "border-success/30 bg-success-bg text-success"
+      : isAuthorized
+        ? "border-purple/30 bg-purple-bg text-purple"
+        : "border-danger/30 bg-danger-bg text-danger";
 
   return (
     <button
@@ -34,7 +37,12 @@ export function ParkingSpotTile({
       <span className="text-base font-extrabold tracking-tight sm:text-lg">
         {spot.code}
       </span>
-      {isFree ? (
+      {isReserved ? (
+        <>
+          <span className="text-[9px] font-bold uppercase tracking-wide sm:text-[10px]">Reservado</span>
+          <span className="max-w-full truncate text-[10px] font-bold sm:text-xs">{spot.reservedFor!.plate}</span>
+        </>
+      ) : isFree ? (
         <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80 sm:text-xs">
           Libre
         </span>

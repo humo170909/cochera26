@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
@@ -18,31 +18,39 @@ export function CashMovementModal({ cashRegisterId }: { cashRegisterId: string }
   const [method, setMethod] = useState<PaymentMethod>("EFECTIVO");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
 
   const close = () => {
     setOpen(false);
     setConcept("");
     setAmount("");
     setError(null);
+    submittingRef.current = false;
   };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await registerCashMovement({
-        cashRegisterId,
-        type,
-        concept,
-        amount,
-        paymentMethod: method,
-      });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await registerCashMovement({
+          cashRegisterId,
+          type,
+          concept,
+          amount,
+          paymentMethod: method,
+        });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        showToast("Movimiento registrado.", "success");
+        close();
+      } finally {
+        submittingRef.current = false;
       }
-      showToast("Movimiento registrado.", "success");
-      close();
     });
   };
 

@@ -61,6 +61,12 @@ export const vehicleExitSchema = z.object({
   entryId: z.uuid(),
   paymentMethod: paymentMethodSchema.nullable(),
   tariffType: tariffTypeSchema.default("HORA"),
+  ticketCode: z.string().trim().min(1).optional().nullable(),
+});
+
+export const validateTicketSchema = z.object({
+  code: z.string().trim().min(1, "Ingresa el código del ticket."),
+  expectedEntryId: z.uuid().optional().nullable(),
 });
 
 export const restroomUseSchema = z.object({
@@ -153,6 +159,7 @@ export const createSubscriberSchema = z.object({
   monto: z.coerce.number().positive("El monto debe ser mayor a cero."),
   estado: subscriberStatusSchema.default("ACTIVO"),
   observaciones: z.string().max(500).optional().nullable(),
+  assignedSpotId: z.uuid().optional().nullable(),
 });
 
 export const updateSubscriberSchema = createSubscriberSchema.extend({

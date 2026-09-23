@@ -34,6 +34,10 @@ export type SubscriberStatus = "ACTIVO" | "VENCIDO" | "SUSPENDIDO" | "CANCELADO"
 
 export type AuthorizedVehicleStatus = "ACTIVO" | "INACTIVO";
 
+export type TicketStatus = "ACTIVE" | "USED" | "CANCELLED" | "VOID";
+
+export type TicketTariffType = "HORA" | "PLANA";
+
 export interface CashRegisterSummary {
   efectivo: number;
   yape: number;

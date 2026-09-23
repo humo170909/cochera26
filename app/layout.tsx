@@ -50,7 +50,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased font-sans`}
       >
-        {children}
+        {/* id="app-root" + className="contents": ancla para el CSS de
+            impresión de tickets (ver app/globals.css). "contents" hace que
+            este div no participe del layout (como si no existiera), así
+            que envolver acá no cambia nada visualmente. */}
+        <div id="app-root" className="contents">
+          {children}
+        </div>
       </body>
     </html>
   );

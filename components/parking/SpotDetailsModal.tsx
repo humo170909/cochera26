@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Card";
@@ -8,7 +9,9 @@ import { calculateHourlyFee } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
 import { formatShortTimeLima } from "@/lib/datetime";
 import { VEHICLE_TYPE_LABELS } from "@/lib/constants";
-import type { ParkingSpotWithEntry, FlatRateSettings, ToleranceSettings } from "@/types/domain";
+import { getEntryTicket } from "@/actions/ticket-actions";
+import { PrintTicketModal } from "@/components/tickets/PrintTicketModal";
+import type { ParkingSpotWithEntry, FlatRateSettings, ToleranceSettings, EntryTicket } from "@/types/domain";
 
 export function SpotDetailsModal({
   spot,
@@ -23,6 +26,10 @@ export function SpotDetailsModal({
   flatRate: FlatRateSettings;
   onClose: () => void;
 }) {
+  const [ticketToPrint, setTicketToPrint] = useState<EntryTicket | null>(null);
+  const [reprintError, setReprintError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
   const entry = spot?.activeEntry ?? null;
   const elapsed = useElapsedTime(entry?.entryAt ?? new Date().toISOString());
   const fee = calculateHourlyFee(pricePerHour, elapsed.elapsedMinutes, tolerance);
@@ -34,7 +41,24 @@ export function SpotDetailsModal({
       ? (entry.flatRatePriceSnapshot ?? flatRate.precio)
       : fee.amount;
 
+  // Solo HORA/PLANA tuvieron ticket al ingresar (misma regla que el backend).
+  const mayHaveTicket = !!entry && !entry.isAuthorized && !entry.coveredBySubscription;
+
+  const onReprint = () => {
+    if (!entry) return;
+    setReprintError(null);
+    startTransition(async () => {
+      const res = await getEntryTicket(entry.id);
+      if (res.error || !res.data) {
+        setReprintError(res.error ?? "Este ingreso no tiene un ticket asociado.");
+        return;
+      }
+      setTicketToPrint(res.data);
+    });
+  };
+
   return (
+    <>
     <Modal open={!!spot && !!entry} onClose={onClose} maxWidth="max-w-sm">
       {spot && entry && (
         <div className="p-6">
@@ -78,7 +102,16 @@ export function SpotDetailsModal({
             Para registrar la salida, ve a la sección Salidas.
           </p>
 
-          <div className="mt-4 flex gap-3">
+          {reprintError && (
+            <p className="mt-2 text-center text-xs font-medium text-danger">{reprintError}</p>
+          )}
+
+          <div className="mt-4 flex flex-col gap-3">
+            {mayHaveTicket && (
+              <Button variant="secondary" fullWidth onClick={onReprint} disabled={pending}>
+                {pending ? "Buscando ticket..." : "Reimprimir ticket"}
+              </Button>
+            )}
             <Button variant="secondary" fullWidth onClick={onClose}>
               Cerrar
             </Button>
@@ -86,6 +119,9 @@ export function SpotDetailsModal({
         </div>
       )}
     </Modal>
+
+    <PrintTicketModal ticket={ticketToPrint} onClose={() => setTicketToPrint(null)} />
+    </>
   );
 }
 

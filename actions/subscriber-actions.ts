@@ -41,12 +41,16 @@ export async function createSubscriber(input: unknown): Promise<ActionResult> {
     monto: d.monto,
     estado: d.estado,
     observaciones: d.observaciones || null,
+    assigned_spot_id: d.assignedSpotId || null,
     created_by: profile.id,
   });
 
   if (error) return { error: error.message };
 
   revalidatePath("/abonados");
+  revalidatePath("/estacionamientos");
+  revalidatePath("/ingreso");
+  revalidatePath("/salida");
   return {};
 }
 
@@ -74,12 +78,16 @@ export async function updateSubscriber(input: unknown): Promise<ActionResult> {
       monto: d.monto,
       estado: d.estado,
       observaciones: d.observaciones || null,
+      assigned_spot_id: d.assignedSpotId || null,
     })
     .eq("id", d.id);
 
   if (error) return { error: error.message };
 
   revalidatePath("/abonados");
+  revalidatePath("/estacionamientos");
+  revalidatePath("/ingreso");
+  revalidatePath("/salida");
   return {};
 }
 

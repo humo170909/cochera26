@@ -114,3 +114,48 @@ body {
   background: var(--border);
   border-radius: 999px;
 }
+
+/* =============================================================================
+   IMPRESIÓN DE TICKETS (KRD PARK)
+
+   Ajustar aquí el ancho de la impresora térmica: 80mm (default) o 58mm.
+   Cambiar ambos valores juntos (@page y el max-width del .ticket-print en
+   TicketLayout.tsx) si la cochera usa una impresora de 58mm.
+
+   Impresión silenciosa: window.print() siempre abre el diálogo nativo del
+   navegador — ninguna web app puede evitarlo por sí sola, es una
+   restricción de seguridad del navegador. Si el equipo de la cochera corre
+   Chrome/Edge lanzado con el flag --kiosk-printing, ese mismo diálogo se
+   omite automáticamente y se imprime directo a la impresora predeterminada,
+   sin tocar una sola línea de este código.
+
+   HISTORIAL DEL BUG (para no repetirlo): primero el ticket se repetía en
+   cada página porque .ticket-print usaba position:fixed (se repite en
+   cada página al imprimir, es el comportamiento estándar de "fixed" en
+   @media print). Se cambió a position:absolute, pero eso solo evita la
+   REPETICIÓN — no evita que el navegador siga generando varias páginas:
+   `body * { visibility: hidden }` NUNCA saca el resto de la app del flujo
+   del documento (visibility no es display: none), así que el sidebar, la
+   grilla de 31 espacios, etc. seguían ocupando su alto real y forzando a
+   Chrome a paginar ese contenido invisible en varias hojas — con
+   position:absolute el ticket ya no se repetía en cada una, pero la
+   impresora igual recibía/alimentaba esas hojas de más (vacías), lo que
+   en la práctica se sintió como "6 copias".
+
+   FIX DEFINITIVO: el ticket se imprime vía un React Portal directo a
+   document.body (ver PrintTicketModal.tsx), FUERA de #app-root (ver
+   app/layout.tsx). Así, en impresión, #app-root pasa a display:none — una
+   remoción REAL del documento, alto cero, sin nada que paginar — y lo
+   único que puede imprimirse es el ticket portado. Ya no se necesita el
+   truco de visibility ni position:absolute/fixed para nada.
+   ============================================================================= */
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  #app-root {
+    display: none;
+  }
+}

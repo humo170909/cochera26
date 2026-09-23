@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/auth/dal";
 import { getSubscribers } from "@/services/subscribers";
 import { getSubscriberPlanSettings } from "@/services/tariffs";
+import { getAllSpotCodes } from "@/services/parking";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { NewSubscriberModal } from "@/components/abonados/NewSubscriberModal";
@@ -15,7 +16,10 @@ export const metadata: Metadata = { title: "Abonados" };
 export default async function AbonadosPage() {
   const profile = await requireAuth();
   const planDefaults = await getSubscriberPlanSettings();
-  const subscribers = await getSubscribers(planDefaults.diasAlertaVencimiento);
+  const [subscribers, spots] = await Promise.all([
+    getSubscribers(planDefaults.diasAlertaVencimiento),
+    getAllSpotCodes(),
+  ]);
   const isAdmin = profile.rol === "ADMIN";
 
   return (
@@ -34,7 +38,7 @@ export default async function AbonadosPage() {
             <Link href="/abonados/pagos">
               <Button variant="secondary">Ver pagos</Button>
             </Link>
-            <NewSubscriberModal defaults={planDefaults} />
+            <NewSubscriberModal defaults={planDefaults} spots={spots} />
           </div>
         )}
       </div>
@@ -43,7 +47,7 @@ export default async function AbonadosPage() {
 
       <Card>
         <CardHeader title={`${subscribers.length} abonados`} />
-        <SubscribersTable subscribers={subscribers} role={profile.rol} />
+        <SubscribersTable subscribers={subscribers} role={profile.rol} spots={spots} />
       </Card>
     </div>
   );

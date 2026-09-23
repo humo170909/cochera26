@@ -1,4 +1,11 @@
-import type { PaymentMethod, SpotStatus, TariffType, VehicleType } from "@/types/database";
+import type {
+  PaymentMethod,
+  SpotStatus,
+  TariffType,
+  TicketStatus,
+  TicketTariffType,
+  VehicleType,
+} from "@/types/database";
 
 export interface ActiveEntryInfo {
   id: string;
@@ -15,12 +22,20 @@ export interface ActiveEntryInfo {
   authorizedOwnerName: string | null;
 }
 
+/** Espacio fijo reservado a un abonado activo — solo tiene sentido cuando
+ * el espacio está LIBRE (si está OCUPADO ya se ve el dueño en activeEntry). */
+export interface SpotReservation {
+  plate: string;
+  nombreCompleto: string;
+}
+
 export interface ParkingSpotWithEntry {
   id: string;
   code: string;
   status: SpotStatus;
   spotType: string;
   activeEntry: ActiveEntryInfo | null;
+  reservedFor: SpotReservation | null;
 }
 
 export interface VehicleExitDetail {
@@ -82,4 +97,38 @@ export interface PlateStatusResult {
   fechaVencimiento: string | null;
   /** Para AUTORIZADO siempre 'ACTIVO'; para ABONADO: ACTIVO/VENCIDO/SUSPENDIDO/CANCELADO. */
   displayStatus: string | null;
+}
+
+/** Ticket de ingreso (solo existe para HORA/PLANA — get_entry_ticket()
+ * devuelve null si el ingreso fue abonado/autorizado). validationToken es
+ * el contenido crudo del QR; validationCode es el código corto para
+ * respaldo manual. */
+export interface EntryTicket {
+  id: string;
+  ticketCode: string;
+  validationCode: string;
+  validationToken: string;
+  plate: string;
+  vehicleType: VehicleType;
+  spotCode: string;
+  tariffType: TicketTariffType;
+  tariffAmount: number;
+  status: TicketStatus;
+  issuedAt: string;
+}
+
+export type TicketValidationOutcome =
+  | "VALID"
+  | "NOT_FOUND"
+  | "ALREADY_USED"
+  | "CANCELLED"
+  | "WRONG_VEHICLE";
+
+export interface TicketValidationResult {
+  outcome: TicketValidationOutcome;
+  ticketId: string | null;
+  entryId: string | null;
+  plate: string | null;
+  spotCode: string | null;
+  status: TicketStatus | null;
 }

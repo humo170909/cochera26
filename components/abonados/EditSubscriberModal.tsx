@@ -12,9 +12,11 @@ import type { SubscriberStatus, VehicleType } from "@/types/database";
 
 export function EditSubscriberModal({
   subscriber,
+  spots,
   fullWidth,
 }: {
   subscriber: SubscriberRow;
+  spots: { id: string; code: string }[];
   fullWidth?: boolean;
 }) {
   const { showToast } = useToast();
@@ -31,6 +33,7 @@ export function EditSubscriberModal({
     monto: String(subscriber.monto),
     estado: subscriber.estado,
     observaciones: subscriber.observaciones ?? "",
+    assignedSpotId: subscriber.assignedSpotId ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -39,7 +42,11 @@ export function EditSubscriberModal({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await updateSubscriber({ id: subscriber.id, ...form });
+      const result = await updateSubscriber({
+        id: subscriber.id,
+        ...form,
+        assignedSpotId: form.assignedSpotId || null,
+      });
       if (result.error) {
         setError(result.error);
         return;
@@ -91,6 +98,20 @@ export function EditSubscriberModal({
                 {VEHICLE_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {VEHICLE_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Espacio asignado (opcional)" htmlFor="e-espacio">
+              <Select
+                id="e-espacio"
+                value={form.assignedSpotId}
+                onChange={(e) => setForm((f) => ({ ...f, assignedSpotId: e.target.value }))}
+              >
+                <option value="">Sin espacio asignado</option>
+                {spots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code}
                   </option>
                 ))}
               </Select>

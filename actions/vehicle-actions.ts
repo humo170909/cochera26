@@ -22,7 +22,7 @@ export interface ActionResult<T = undefined> {
 
 export async function registerVehicleEntry(
   input: unknown
-): Promise<ActionResult> {
+): Promise<ActionResult<{ entryId: string; spotCode: string }>> {
   await requireAuth();
 
   const parsed = vehicleEntrySchema.safeParse(input);
@@ -31,22 +31,34 @@ export async function registerVehicleEntry(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("register_vehicle_entry", {
-    p_plate: parsed.data.plate,
-    p_vehicle_type: parsed.data.vehicleType,
-    p_spot_id: parsed.data.spotId,
-    p_use_flat_rate: parsed.data.useFlatRate,
-  });
+  const { data, error } = await supabase
+    .rpc("register_vehicle_entry", {
+      p_plate: parsed.data.plate,
+      p_vehicle_type: parsed.data.vehicleType,
+      p_spot_id: parsed.data.spotId,
+      p_use_flat_rate: parsed.data.useFlatRate,
+    })
+    .single()
+    .returns<{ id: string; parking_spot_id: string }>();
 
-  if (error) {
-    return { error: error.message };
+  if (error || !data) {
+    return { error: error?.message ?? "No se pudo registrar el ingreso." };
   }
+
+  // El espacio realmente ocupado puede no ser el que se tocó en la grilla:
+  // si la placa es de un abonado con espacio fijo, register_vehicle_entry()
+  // lo redirige automáticamente a su espacio asignado (ver 0017).
+  const { data: spotRow } = await supabase
+    .from("parking_spots")
+    .select("code")
+    .eq("id", data.parking_spot_id)
+    .single();
 
   revalidatePath("/dashboard");
   revalidatePath("/estacionamientos");
   revalidatePath("/ingreso");
   revalidatePath("/salida");
-  return {};
+  return { data: { entryId: data.id, spotCode: spotRow?.code ?? "" } };
 }
 
 export async function registerVehicleExit(
@@ -65,6 +77,7 @@ export async function registerVehicleExit(
       p_entry_id: parsed.data.entryId,
       p_payment_method: parsed.data.paymentMethod,
       p_tariff_type: parsed.data.tariffType,
+      p_ticket_code: parsed.data.ticketCode ?? null,
     })
     .single()
     .returns<VehicleExitRpcResult>();

@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
 import { Clock } from "@/components/layout/Clock";
 import { useToast } from "@/components/ui/Toaster";
 import { registerVehicleEntry } from "@/actions/vehicle-actions";
+import { getEntryTicket } from "@/actions/ticket-actions";
 import { usePlateStatusLookup } from "@/hooks/usePlateStatusLookup";
 import { ClientTypeCard } from "@/components/parking/ClientTypeCard";
+import { PrintTicketModal } from "@/components/tickets/PrintTicketModal";
 import { isFlatRateEligibleNow } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
 import { VEHICLE_TYPES, VEHICLE_TYPE_LABELS } from "@/lib/constants";
 import type { VehicleType } from "@/types/database";
-import type { FlatRateCapacity, FlatRateSettings } from "@/types/domain";
+import type { EntryTicket, FlatRateCapacity, FlatRateSettings } from "@/types/domain";
 
 interface FreeSpotOption {
   id: string;
@@ -42,7 +44,16 @@ export function VehicleEntryModal({
   const [useFlatRate, setUseFlatRate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [ticketToPrint, setTicketToPrint] = useState<EntryTicket | null>(null);
   const { result: plateStatus, loading: lookupLoading } = usePlateStatusLookup(plate);
+  // Guardia síncrona contra doble/triple clic en "Registrar ingreso": actúa
+  // desde el primer instante del submit, antes de que React re-renderice
+  // con `pending`. La protección real contra duplicados vive en la base de
+  // datos (índice único parcial sobre placa_normalizada activa + lock de
+  // fila del estacionamiento en register_vehicle_entry) — esto es solo
+  // para que el colaborador no vea un error de "ya ocupado" por su propio
+  // doble clic.
+  const submittingRef = useRef(false);
 
   const isFreeEntry =
     plateStatus?.kind === "AUTORIZADO" || (plateStatus?.kind === "ABONADO" && plateStatus.displayStatus === "ACTIVO");
@@ -60,6 +71,7 @@ export function VehicleEntryModal({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     setError(null);
     const targetSpotId = fixedSpot?.id ?? spotId;
 
@@ -68,23 +80,42 @@ export function VehicleEntryModal({
       return;
     }
 
+    submittingRef.current = true;
     startTransition(async () => {
-      const result = await registerVehicleEntry({
-        plate,
-        vehicleType,
-        spotId: targetSpotId,
-        useFlatRate: useFlatRate && flatRateOfferable && flatRateHasCapacity,
-      });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await registerVehicleEntry({
+          plate,
+          vehicleType,
+          spotId: targetSpotId,
+          useFlatRate: useFlatRate && flatRateOfferable && flatRateHasCapacity,
+        });
+        if (result.error || !result.data) {
+          setError(result.error ?? "No se pudo registrar el ingreso.");
+          return;
+        }
+
+        const { entryId, spotCode } = result.data;
+        close();
+
+        // Ticket solo para HORA/PLANA: get_entry_ticket() devuelve null para
+        // abonado/autorizado, que nunca deben mostrar el paso de impresión.
+        const ticketResult = await getEntryTicket(entryId);
+        if (ticketResult.data) {
+          setTicketToPrint(ticketResult.data);
+        } else {
+          // spotCode viene del servidor: para un abonado con espacio fijo
+          // puede no coincidir con el espacio que se tocó en la grilla
+          // (register_vehicle_entry lo redirige automáticamente al suyo).
+          showToast(`Ingreso registrado en ${spotCode || "el estacionamiento"}.`, "success");
+        }
+      } finally {
+        submittingRef.current = false;
       }
-      showToast(`Ingreso registrado en ${fixedSpot?.code ?? "el estacionamiento"}.`, "success");
-      close();
     });
   };
 
   return (
+    <>
     <Modal open={open} onClose={close} maxWidth="max-w-md">
       <form onSubmit={onSubmit} className="p-6">
         <div className="mb-5 flex items-start justify-between">
@@ -199,5 +230,8 @@ export function VehicleEntryModal({
         </div>
       </form>
     </Modal>
+
+    <PrintTicketModal ticket={ticketToPrint} onClose={() => setTicketToPrint(null)} />
+    </>
   );
 }

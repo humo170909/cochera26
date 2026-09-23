@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toaster";
@@ -16,22 +16,30 @@ export function RestroomModal({ price }: { price: number }) {
   const [observation, setObservation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const confirmingRef = useRef(false);
 
   const close = () => {
     setOpen(false);
     setObservation("");
     setError(null);
+    confirmingRef.current = false;
   };
 
   const onConfirm = () => {
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     startTransition(async () => {
-      const result = await registerRestroomUse({ paymentMethod: method, observation: observation || null });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await registerRestroomUse({ paymentMethod: method, observation: observation || null });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        showToast(`Uso de baño registrado: ${formatCurrency(price)}`, "success");
+        close();
+      } finally {
+        confirmingRef.current = false;
       }
-      showToast(`Uso de baño registrado: ${formatCurrency(price)}`, "success");
-      close();
     });
   };
 

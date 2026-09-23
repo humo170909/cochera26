@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
@@ -17,7 +17,13 @@ function addOneMonth(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function NewSubscriberModal({ defaults }: { defaults: SubscriberPlanSettings }) {
+export function NewSubscriberModal({
+  defaults,
+  spots,
+}: {
+  defaults: SubscriberPlanSettings;
+  spots: { id: string; code: string }[];
+}) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const today = businessDateLima();
@@ -32,23 +38,38 @@ export function NewSubscriberModal({ defaults }: { defaults: SubscriberPlanSetti
     horaLimite: defaults.horaLimite,
     monto: String(defaults.precioMensual),
     observaciones: "",
+    assignedSpotId: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const submittingRef = useRef(false);
 
-  const close = () => setOpen(false);
+  const close = () => {
+    setOpen(false);
+    submittingRef.current = false;
+  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await createSubscriber({ ...form, estado: "ACTIVO" });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await createSubscriber({
+          ...form,
+          estado: "ACTIVO",
+          assignedSpotId: form.assignedSpotId || null,
+        });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        showToast("Abonado registrado.", "success");
+        close();
+      } finally {
+        submittingRef.current = false;
       }
-      showToast("Abonado registrado.", "success");
-      close();
     });
   };
 
@@ -93,6 +114,20 @@ export function NewSubscriberModal({ defaults }: { defaults: SubscriberPlanSetti
                 {VEHICLE_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {VEHICLE_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Espacio asignado (opcional)" htmlFor="s-espacio">
+              <Select
+                id="s-espacio"
+                value={form.assignedSpotId}
+                onChange={(e) => setForm((f) => ({ ...f, assignedSpotId: e.target.value }))}
+              >
+                <option value="">Sin espacio asignado</option>
+                {spots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code}
                   </option>
                 ))}
               </Select>

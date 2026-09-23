@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toaster";
@@ -24,24 +24,32 @@ export function RegisterPaymentModal({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ periodStart: string; periodEnd: string } | null>(null);
+  const confirmingRef = useRef(false);
 
   const close = () => {
     setOpen(false);
     setResult(null);
     setError(null);
     setMethod("EFECTIVO");
+    confirmingRef.current = false;
   };
 
   const onConfirm = () => {
+    if (confirmingRef.current) return;
+    confirmingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const res = await registerSubscriberPayment({ subscriberId: subscriber.id, paymentMethod: method });
-      if (res.error || !res.data) {
-        setError(res.error ?? "No se pudo registrar el pago.");
-        return;
+      try {
+        const res = await registerSubscriberPayment({ subscriberId: subscriber.id, paymentMethod: method });
+        if (res.error || !res.data) {
+          setError(res.error ?? "No se pudo registrar el pago.");
+          return;
+        }
+        showToast("Pago de abonado registrado.", "success");
+        setResult({ periodStart: res.data.periodStart, periodEnd: res.data.periodEnd });
+      } finally {
+        confirmingRef.current = false;
       }
-      showToast("Pago de abonado registrado.", "success");
-      setResult({ periodStart: res.data.periodStart, periodEnd: res.data.periodEnd });
     });
   };
 

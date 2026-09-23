@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useElapsedTime } from "@/hooks/useElapsedTime";
 import { calculateHourlyFee } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
-import { formatShortTimeLima } from "@/lib/datetime";
+import { formatShortTimeLima, formatDateTimeLima, formatDurationMinutes } from "@/lib/datetime";
 import { registerVehicleExit } from "@/actions/vehicle-actions";
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS } from "@/lib/constants";
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS, TARIFF_TYPE_LABELS } from "@/lib/constants";
 import type { PaymentMethod, TariffType, VehicleType } from "@/types/database";
 import type { FlatRateSettings, ToleranceSettings } from "@/types/domain";
 
@@ -45,7 +45,16 @@ export function PaymentModal({
     amount: number;
     method: PaymentMethod | null;
     tariffType: TariffType;
+    durationMinutes: number;
+    exitAt: Date;
   } | null>(null);
+
+  // Guardia síncrona contra doble clic en "Confirmar salida/cobro" — la
+  // protección real contra procesar la misma salida dos veces vive en
+  // register_vehicle_exit() (lock de fila + status='ACTIVO' sobre
+  // vehicle_entries); esto solo evita un segundo intento innecesario desde
+  // el mismo clic accidental.
+  const confirmingRef = useRef(false);
 
   const elapsed = useElapsedTime(target?.entryAt ?? new Date().toISOString());
 
@@ -72,19 +81,30 @@ export function PaymentModal({
   };
 
   const onConfirm = () => {
-    if (!target) return;
+    if (!target || confirmingRef.current) return;
+    confirmingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const res = await registerVehicleExit({
-        entryId: target.entryId,
-        paymentMethod: noCharge ? null : method,
-        tariffType: "HORA",
-      });
-      if (res.error || !res.data) {
-        setError(res.error ?? "No se pudo procesar el pago.");
-        return;
+      try {
+        const res = await registerVehicleExit({
+          entryId: target.entryId,
+          paymentMethod: noCharge ? null : method,
+          tariffType: "HORA",
+        });
+        if (res.error || !res.data) {
+          setError(res.error ?? "No se pudo procesar el pago.");
+          return;
+        }
+        setResult({
+          amount: res.data.amount,
+          method: res.data.paymentMethod,
+          tariffType: res.data.tariffType,
+          durationMinutes: res.data.durationMinutes,
+          exitAt: new Date(),
+        });
+      } finally {
+        confirmingRef.current = false;
       }
-      setResult({ amount: res.data.amount, method: res.data.paymentMethod, tariffType: res.data.tariffType });
     });
   };
 
@@ -92,7 +112,7 @@ export function PaymentModal({
     <Modal open={!!target} onClose={close} maxWidth="max-w-lg">
       {target && !result && (
         <div className="p-6 sm:p-8">
-          <p className="text-center text-sm font-bold uppercase tracking-[0.3em] text-muted">Cobro</p>
+          <p className="text-center text-sm font-bold uppercase tracking-[0.3em] text-muted">Registrar salida</p>
           <h3 className="mt-1 text-center text-2xl font-extrabold text-foreground">
             {target.plate}
             <span className="ml-2 font-normal text-muted">· {target.spotCode}</span>
@@ -104,7 +124,7 @@ export function PaymentModal({
           </div>
 
           <div className="mt-3 rounded-2xl bg-surface-2 p-4 text-center">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tiempo</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tiempo total</p>
             <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
               {elapsed.elapsedLabel}
             </p>
@@ -181,26 +201,55 @@ export function PaymentModal({
         </div>
       )}
 
-      {result && (
-        <div className="flex flex-col items-center gap-4 p-8 text-center sm:p-10">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success-bg text-4xl text-success">
+      {result && target && (
+        <div className="p-6 text-center sm:p-8">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-bg text-3xl text-success">
             ✓
           </div>
-          <p className="text-lg font-semibold text-foreground">
-            {result.tariffType === "ABONADO" || result.tariffType === "AUTORIZADO"
-              ? "Salida registrada"
-              : "Cobro registrado"}
+          <p className="mt-3 text-xs font-bold uppercase tracking-[0.3em] text-muted">KRD Park</p>
+          <p className="text-lg font-bold text-foreground">Resumen de salida</p>
+
+          <dl className="mt-4 flex flex-col gap-2 rounded-2xl bg-surface-2 p-4 text-left text-sm">
+            <ResumenRow label="Placa" value={target.plate} />
+            <ResumenRow label="Vehículo" value={VEHICLE_TYPE_LABELS[target.vehicleType]} />
+            <ResumenRow label="Espacio" value={target.spotCode} />
+            <ResumenRow label="Ingreso" value={formatDateTimeLima(new Date(target.entryAt))} />
+            <ResumenRow label="Tarifa" value={TARIFF_TYPE_LABELS[result.tariffType]} />
+            <ResumenRow label="Estado" value={result.amount > 0 ? "PAGADO / CERRADO" : "CERRADO"} />
+          </dl>
+
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.3em] text-muted">
+            Escribe estos datos en el ticket original
           </p>
-          <p className="text-5xl font-black tabular-nums text-success">{formatCurrency(result.amount)}</p>
-          <p className="text-sm font-medium text-muted">
-            {result.method
-              ? PAYMENT_METHOD_LABELS[result.method]
-              : result.tariffType === "AUTORIZADO"
-                ? "Vehículo autorizado"
-                : "Cubierto por abono"}{" "}
-            · Estacionamiento liberado
-          </p>
-          <Button size="lg" fullWidth onClick={close}>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Hora de salida</p>
+              <p className="mt-1 font-mono text-2xl font-black tabular-nums text-foreground">
+                {formatShortTimeLima(result.exitAt)}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tiempo total</p>
+              <p className="mt-1 font-mono text-2xl font-black tabular-nums text-foreground">
+                {formatDurationMinutes(result.durationMinutes)}
+              </p>
+            </div>
+            <div className="rounded-2xl border-4 border-primary bg-primary p-4 text-primary-foreground">
+              <p className="text-xs font-bold uppercase tracking-wide opacity-90">Total a pagar</p>
+              <p className="mt-1 text-2xl font-black tabular-nums">{formatCurrency(result.amount)}</p>
+            </div>
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Método de pago</p>
+              <p className="mt-1 text-lg font-bold text-foreground">
+                {result.method ? PAYMENT_METHOD_LABELS[result.method] : "—"}
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-muted">Estacionamiento liberado. No se imprime un segundo ticket.</p>
+
+          <Button size="lg" fullWidth className="mt-6" onClick={close}>
             Listo
           </Button>
         </div>
@@ -214,6 +263,15 @@ function InfoBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-border bg-surface p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
       <p className="text-sm font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function ResumenRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="text-muted">{label}</dt>
+      <dd className="text-right font-semibold text-foreground">{value}</dd>
     </div>
   );
 }

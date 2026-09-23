@@ -24,6 +24,9 @@ export interface SubscriberRow {
   diasRestantes: number;
   /** true si tiene un vehículo actualmente dentro de la cochera (bloquea eliminar). */
   hasActiveVehicle: boolean;
+  assignedSpotId: string | null;
+  /** null si no tiene espacio asignado ("Sin espacio asignado" en la UI). */
+  assignedSpotCode: string | null;
 }
 
 interface RawSubscriberRow {
@@ -39,6 +42,8 @@ interface RawSubscriberRow {
   monto: number;
   estado: SubscriberStatus;
   observaciones: string | null;
+  assigned_spot_id: string | null;
+  assigned_spot: { code: string } | null;
 }
 
 function daysBetween(today: string, target: string): number {
@@ -59,7 +64,7 @@ function computeEffectiveStatus(
 }
 
 const SUBSCRIBER_SELECT =
-  "id, nombre_completo, documento, telefono, plate, vehicle_type, fecha_inicio, fecha_vencimiento, hora_limite, monto, estado, observaciones";
+  "id, nombre_completo, documento, telefono, plate, vehicle_type, fecha_inicio, fecha_vencimiento, hora_limite, monto, estado, observaciones, assigned_spot_id, assigned_spot:parking_spots!subscribers_assigned_spot_id_fkey ( code )";
 
 function mapSubscriber(
   s: RawSubscriberRow,
@@ -83,6 +88,8 @@ function mapSubscriber(
     effectiveStatus: computeEffectiveStatus(s, today, diasAlerta),
     diasRestantes: daysBetween(today, s.fecha_vencimiento),
     hasActiveVehicle: activeSubscriberIds.has(s.id),
+    assignedSpotId: s.assigned_spot_id,
+    assignedSpotCode: s.assigned_spot?.code ?? null,
   };
 }
 

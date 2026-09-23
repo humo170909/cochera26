@@ -20,9 +20,11 @@ const ESTADO_FILTER_OPTIONS: SubscriberDisplayStatus[] = ["ACTIVO", "POR_VENCER"
 export function SubscribersTable({
   subscribers,
   role,
+  spots,
 }: {
   subscribers: SubscriberRow[];
   role: UserRole;
+  spots: { id: string; code: string }[];
 }) {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<"" | "TODOS" | SubscriberDisplayStatus>("");
@@ -89,6 +91,7 @@ export function SubscribersTable({
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-5 py-3">Cliente</th>
                 <th className="px-5 py-3">Placa</th>
+                <th className="px-5 py-3">Espacio</th>
                 {isAdmin && <th className="px-5 py-3">Vehículo</th>}
                 {isAdmin && <th className="px-5 py-3">Hora límite</th>}
                 <th className="px-5 py-3">Vencimiento</th>
@@ -108,6 +111,9 @@ export function SubscribersTable({
                       {s.telefono && <p className="text-xs text-muted">{s.telefono}</p>}
                     </td>
                     <td className="px-5 py-3 font-semibold text-foreground">{s.plate}</td>
+                    <td className="px-5 py-3 text-foreground">
+                      {s.assignedSpotCode ?? <span className="text-muted">Sin espacio asignado</span>}
+                    </td>
                     {isAdmin && <td className="px-5 py-3 text-foreground">{VEHICLE_TYPE_LABELS[s.vehicleType]}</td>}
                     {isAdmin && <td className="px-5 py-3 text-foreground">{s.horaLimite}</td>}
                     <td className="px-5 py-3 text-foreground">{formatDateOnly(s.fechaVencimiento)}</td>
@@ -123,7 +129,7 @@ export function SubscribersTable({
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap justify-end gap-2">
                         {!isCancelled && <RegisterPaymentModal subscriber={s} />}
-                        {isAdmin && !isCancelled && <EditSubscriberModal subscriber={s} />}
+                        {isAdmin && !isCancelled && <EditSubscriberModal subscriber={s} spots={spots} />}
                         {isAdmin && !isCancelled && <DeleteSubscriberModal subscriber={s} />}
                         {isAdmin && isCancelled && <ReactivateSubscriberButton subscriber={s} />}
                       </div>
@@ -155,6 +161,7 @@ export function SubscribersTable({
 
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
                   <Row label="Placa" value={s.plate} />
+                  <Row label="Espacio" value={s.assignedSpotCode ?? "Sin espacio asignado"} />
                   {isAdmin && <Row label="Vehículo" value={VEHICLE_TYPE_LABELS[s.vehicleType]} />}
                   {isAdmin && <Row label="Hora límite" value={s.horaLimite} />}
                   <Row label="Vence" value={formatDateOnly(s.fechaVencimiento)} />
@@ -169,7 +176,7 @@ export function SubscribersTable({
                   {!isCancelled && (
                     <div className="grid grid-cols-2 gap-2">
                       <RegisterPaymentModal subscriber={s} fullWidth />
-                      {isAdmin && <EditSubscriberModal subscriber={s} fullWidth />}
+                      {isAdmin && <EditSubscriberModal subscriber={s} spots={spots} fullWidth />}
                     </div>
                   )}
                   {isAdmin && !isCancelled && (

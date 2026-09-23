@@ -124,6 +124,14 @@ git push -u origin main
 - **"Por vencer" es un estado calculado**, nunca guardado: `fecha_vencimiento - hoy <= dias_alerta_vencimiento` (configurable). El único estado que sí vive en la base de datos junto a ACTIVO/VENCIDO/CANCELADO es SUSPENDIDO, que el admin controla a mano.
 - **Ambos roles pueden consultar y cobrar abonados** (`/abonados` en el menú de ambos). Solo ADMIN puede crear/editar abonados, cambiar precios o ver `/abonados/pagos` (historial completo con filtros).
 
+## Tickets de ingreso (KRD Park)
+
+- **Solo HORA y PLANA emiten ticket.** `register_vehicle_entry()` decide la elegibilidad con las mismas variables (`v_authorized.id`, `v_subscriber.id`) que ya usaba para decidir el cobro — abonado/autorizado/reservado nunca generan ticket ni pasan por el paso de impresión, en el backend, no solo en la UI.
+- **Identificador único por ticket**: cada ticket (`public.entry_tickets`) tiene un `validation_token` de 160 bits (`gen_random_bytes(20)` vía pgcrypto) y un `validation_code` corto derivado de él, que es lo único que se imprime en el papel (el ticket es deliberadamente mínimo: sin tarifa, sin precio, sin QR — solo placa/espacio/tipo/fecha/hora de ingreso, el código, y una línea en blanco para anotar la salida a mano).
+- **La salida NO pide, escanea ni valida ningún código** (decisión explícita: se probó exigirlo y se revirtió por fricción operativa). El colaborador solo selecciona el vehículo en `/salida`; el sistema identifica la entrada activa por su `entry_id`, no por el ticket. La seguridad de "cerrar la entrada correcta, una sola vez, sin choques entre dos colaboradores" la da el `for update` + `status = 'ACTIVO'` sobre `vehicle_entries` (nunca el código del ticket). Si la entrada tenía ticket, `register_vehicle_exit()` lo marca `USED` automáticamente por `entry_id` — es historial/auditoría, no un control de acceso. `validate_entry_ticket()` sigue existiendo en el backend (sin UI) por si se necesita para control administrativo futuro.
+- **Nunca se imprime un segundo ticket en la salida.** `/salida` muestra en pantalla, por separado, hora de salida / tiempo total / total a pagar / método de pago, para que el colaborador los escriba a mano en el ticket físico original (la hora real de salida se sigue guardando automáticamente en la base de datos; la línea en el papel es solo anotación física).
+- **Impresión**: `window.print()` sobre un layout `.ticket-print` (58/80mm, `@media print` en `app/globals.css`) — nunca automática, siempre tras el diálogo "¿Está seguro de imprimir el ticket?". Un navegador estándar no puede imprimir en silencio sin intervención del usuario; si la PC de la cochera corre Chrome/Edge con el flag `--kiosk-printing`, ese mismo `window.print()` omite el diálogo automáticamente, sin cambios de código.
+
 ## Estructura del proyecto
 
 ```
