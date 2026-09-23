@@ -39,7 +39,11 @@ export interface ParkingSpotWithEntry {
 }
 
 export interface VehicleExitDetail {
+  id: string;
+  entryId: string;
+  exitAt: string;
   amount: number;
+  tariffApplied: number;
   durationMinutes: number;
   paymentMethod: PaymentMethod | null;
   tariffType: TariffType;
@@ -115,6 +119,29 @@ export interface EntryTicket {
   tariffAmount: number;
   status: TicketStatus;
   issuedAt: string;
+}
+
+/** Ticket/recibo de salida — se arma en el cliente con datos que YA
+ * devolvió register_vehicle_exit() (nunca se recalcula el monto ni la
+ * tarifa). No existe una tabla propia: a diferencia del ticket de ingreso
+ * (anticopia, controla el acceso), este es solo un comprobante impreso
+ * después de que el cobro ya quedó registrado, sin implicancia de
+ * seguridad — por eso no necesita persistirse ni tener un código único
+ * verificable. `ticketCode` reutiliza el código del ticket de ingreso
+ * cuando existió (HORA/PLANA), o cae a uno derivado del id de la salida
+ * para abonado/autorizado (que nunca tuvieron ticket de ingreso). */
+export interface ExitTicket {
+  ticketCode: string;
+  plate: string;
+  spotCode: string;
+  vehicleType: VehicleType;
+  entryAt: string;
+  exitAt: string;
+  durationMinutes: number;
+  tariffType: TariffType;
+  tariffApplied: number;
+  amount: number;
+  paymentMethod: PaymentMethod | null;
 }
 
 export type TicketValidationOutcome =

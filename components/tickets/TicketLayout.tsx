@@ -18,10 +18,11 @@ export function TicketLayout({ ticket }: { ticket: EntryTicket }) {
   const issued = new Date(ticket.issuedAt);
 
   return (
-    <div className="ticket-print mx-auto w-full max-w-[80mm] bg-white p-3 font-mono text-[12px] leading-snug text-black">
+    <div className="ticket-print mx-auto w-full max-w-[80mm] bg-white px-3 pb-3 pt-[3mm] font-mono text-[12px] leading-snug text-black">
       <div className="text-center">
         <p className="text-base font-extrabold tracking-wide">KRD PARK</p>
         <p className="text-[10px] tracking-widest">ESTACIONAMIENTO</p>
+        <p className="text-[10px] leading-snug">DIRECCIÓN: JIRON ICA 540 - CERCADO DE LIMA</p>
       </div>
 
       <Divider />

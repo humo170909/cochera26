@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/Button";
 import { useElapsedTime } from "@/hooks/useElapsedTime";
 import { calculateHourlyFee } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
-import { formatShortTimeLima, formatDateTimeLima, formatDurationMinutes } from "@/lib/datetime";
+import { formatShortTimeLima } from "@/lib/datetime";
 import { registerVehicleExit } from "@/actions/vehicle-actions";
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS, TARIFF_TYPE_LABELS } from "@/lib/constants";
-import type { PaymentMethod, TariffType, VehicleType } from "@/types/database";
-import type { FlatRateSettings, ToleranceSettings } from "@/types/domain";
+import { getEntryTicket } from "@/actions/ticket-actions";
+import { PrintExitTicketModal } from "@/components/tickets/PrintExitTicketModal";
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS } from "@/lib/constants";
+import type { PaymentMethod, VehicleType } from "@/types/database";
+import type { ExitTicket, FlatRateSettings, ToleranceSettings } from "@/types/domain";
 
 export interface ExitTarget {
   entryId: string;
@@ -41,13 +43,8 @@ export function PaymentModal({
   const [method, setMethod] = useState<PaymentMethod>("EFECTIVO");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{
-    amount: number;
-    method: PaymentMethod | null;
-    tariffType: TariffType;
-    durationMinutes: number;
-    exitAt: Date;
-  } | null>(null);
+  const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null);
+  const [exitId, setExitId] = useState<string | null>(null);
 
   // Guardia síncrona contra doble clic en "Confirmar salida/cobro" — la
   // protección real contra procesar la misma salida dos veces vive en
@@ -75,7 +72,6 @@ export function PaymentModal({
 
   const close = () => {
     setError(null);
-    setResult(null);
     setMethod("EFECTIVO");
     onClose();
   };
@@ -95,13 +91,33 @@ export function PaymentModal({
           setError(res.error ?? "No se pudo procesar el pago.");
           return;
         }
-        setResult({
-          amount: res.data.amount,
-          method: res.data.paymentMethod,
-          tariffType: res.data.tariffType,
+
+        // El ticket de ingreso (si existió, HORA/PLANA) ya trae un código
+        // único legible — se reutiliza tal cual para que el comprobante de
+        // salida quede identificado con el mismo número que el ticket
+        // físico que el cliente ya tiene. Abonado/autorizado nunca tuvieron
+        // ticket de ingreso, así que se deriva uno solo para mostrar en el
+        // recibo (no tiene fin de seguridad/anticopia, es solo un rótulo).
+        const entryTicketResult = await getEntryTicket(target.entryId);
+        const ticketCode = entryTicketResult.data?.ticketCode ?? `KRD-SAL-${res.data.id.slice(0, 8).toUpperCase()}`;
+
+        // El total/monto/tarifa impresos son EXACTAMENTE los que devolvió
+        // register_vehicle_exit() — nunca se recalculan acá.
+        setExitId(res.data.id);
+        setExitTicket({
+          ticketCode,
+          plate: target.plate,
+          spotCode: target.spotCode,
+          vehicleType: target.vehicleType,
+          entryAt: target.entryAt,
+          exitAt: res.data.exitAt,
           durationMinutes: res.data.durationMinutes,
-          exitAt: new Date(),
+          tariffType: res.data.tariffType,
+          tariffApplied: res.data.tariffApplied,
+          amount: res.data.amount,
+          paymentMethod: res.data.paymentMethod,
         });
+        close();
       } finally {
         confirmingRef.current = false;
       }
@@ -109,8 +125,9 @@ export function PaymentModal({
   };
 
   return (
+    <>
     <Modal open={!!target} onClose={close} maxWidth="max-w-lg">
-      {target && !result && (
+      {target && (
         <div className="p-6 sm:p-8">
           <p className="text-center text-sm font-bold uppercase tracking-[0.3em] text-muted">Registrar salida</p>
           <h3 className="mt-1 text-center text-2xl font-extrabold text-foreground">
@@ -201,60 +218,17 @@ export function PaymentModal({
         </div>
       )}
 
-      {result && target && (
-        <div className="p-6 text-center sm:p-8">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-bg text-3xl text-success">
-            ✓
-          </div>
-          <p className="mt-3 text-xs font-bold uppercase tracking-[0.3em] text-muted">KRD Park</p>
-          <p className="text-lg font-bold text-foreground">Resumen de salida</p>
-
-          <dl className="mt-4 flex flex-col gap-2 rounded-2xl bg-surface-2 p-4 text-left text-sm">
-            <ResumenRow label="Placa" value={target.plate} />
-            <ResumenRow label="Vehículo" value={VEHICLE_TYPE_LABELS[target.vehicleType]} />
-            <ResumenRow label="Espacio" value={target.spotCode} />
-            <ResumenRow label="Ingreso" value={formatDateTimeLima(new Date(target.entryAt))} />
-            <ResumenRow label="Tarifa" value={TARIFF_TYPE_LABELS[result.tariffType]} />
-            <ResumenRow label="Estado" value={result.amount > 0 ? "PAGADO / CERRADO" : "CERRADO"} />
-          </dl>
-
-          <p className="mt-5 text-xs font-bold uppercase tracking-[0.3em] text-muted">
-            Escribe estos datos en el ticket original
-          </p>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-surface-2 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Hora de salida</p>
-              <p className="mt-1 font-mono text-2xl font-black tabular-nums text-foreground">
-                {formatShortTimeLima(result.exitAt)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-surface-2 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tiempo total</p>
-              <p className="mt-1 font-mono text-2xl font-black tabular-nums text-foreground">
-                {formatDurationMinutes(result.durationMinutes)}
-              </p>
-            </div>
-            <div className="rounded-2xl border-4 border-primary bg-primary p-4 text-primary-foreground">
-              <p className="text-xs font-bold uppercase tracking-wide opacity-90">Total a pagar</p>
-              <p className="mt-1 text-2xl font-black tabular-nums">{formatCurrency(result.amount)}</p>
-            </div>
-            <div className="rounded-2xl bg-surface-2 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Método de pago</p>
-              <p className="mt-1 text-lg font-bold text-foreground">
-                {result.method ? PAYMENT_METHOD_LABELS[result.method] : "—"}
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-4 text-xs text-muted">Estacionamiento liberado. No se imprime un segundo ticket.</p>
-
-          <Button size="lg" fullWidth className="mt-6" onClick={close}>
-            Listo
-          </Button>
-        </div>
-      )}
     </Modal>
+
+    <PrintExitTicketModal
+      ticket={exitTicket}
+      exitId={exitId}
+      onClose={() => {
+        setExitTicket(null);
+        setExitId(null);
+      }}
+    />
+    </>
   );
 }
 
@@ -263,15 +237,6 @@ function InfoBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-border bg-surface p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
       <p className="text-sm font-bold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function ResumenRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="text-muted">{label}</dt>
-      <dd className="text-right font-semibold text-foreground">{value}</dd>
     </div>
   );
 }

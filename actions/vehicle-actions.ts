@@ -8,7 +8,11 @@ import type { VehicleExitDetail } from "@/types/domain";
 import type { PaymentMethod, TariffType } from "@/types/database";
 
 interface VehicleExitRpcResult {
+  id: string;
+  entry_id: string;
+  exit_at: string;
   amount: number;
+  tariff_applied: number;
   duration_minutes: number;
   payment_method: PaymentMethod | null;
   tariff_type: TariffType;
@@ -94,7 +98,11 @@ export async function registerVehicleExit(
 
   return {
     data: {
+      id: data.id,
+      entryId: data.entry_id,
+      exitAt: data.exit_at,
       amount: Number(data.amount),
+      tariffApplied: Number(data.tariff_applied),
       durationMinutes: data.duration_minutes,
       paymentMethod: data.payment_method,
       tariffType: data.tariff_type,

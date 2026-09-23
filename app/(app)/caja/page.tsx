@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { requireAuth } from "@/lib/auth/dal";
 import { getTodayCashRegister, getCashRegisterSummary, getCashMovements } from "@/services/cash";
 import { OpenRegisterForm } from "@/components/caja/OpenRegisterForm";
 import { CashSummaryGrid } from "@/components/caja/CashSummaryGrid";
 import { CashMovementModal } from "@/components/caja/CashMovementModal";
 import { CloseRegisterModal } from "@/components/caja/CloseRegisterModal";
+import { ReopenRegisterButton } from "@/components/caja/ReopenRegisterButton";
+import { ResetDailyOperationsButton } from "@/components/caja/ResetDailyOperationsButton";
 import { DashboardRealtimeRefresher } from "@/components/dashboard/DashboardRealtimeRefresher";
 import { Card, CardHeader, Badge } from "@/components/ui/Card";
 import { formatCurrency } from "@/lib/format";
@@ -13,19 +16,24 @@ import { PAYMENT_METHOD_LABELS, MOVEMENT_TYPE_LABELS } from "@/lib/constants";
 export const metadata: Metadata = { title: "Caja" };
 
 export default async function CajaPage() {
+  const profile = await requireAuth();
   const register = await getTodayCashRegister();
+  const isAdmin = profile.rol === "ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
       <DashboardRealtimeRefresher />
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-foreground">Caja del día</h1>
-        <p className="text-sm text-muted">{formatDateTimeLima()}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-foreground">Caja del día</h1>
+          <p className="text-sm text-muted">{formatDateTimeLima()}</p>
+        </div>
+        {isAdmin && <ResetDailyOperationsButton />}
       </div>
 
       {!register && <OpenRegisterForm />}
 
-      {register && <RegisterDetails cashRegisterId={register.id} register={register} />}
+      {register && <RegisterDetails cashRegisterId={register.id} register={register} isAdmin={isAdmin} />}
     </div>
   );
 }
@@ -33,9 +41,11 @@ export default async function CajaPage() {
 async function RegisterDetails({
   cashRegisterId,
   register,
+  isAdmin,
 }: {
   cashRegisterId: string;
   register: Awaited<ReturnType<typeof getTodayCashRegister>>;
+  isAdmin: boolean;
 }) {
   if (!register) return null;
   const [summary, movements] = await Promise.all([
@@ -92,6 +102,11 @@ async function RegisterDetails({
             />
             <Item label="Cerrada por" value={register.closedByName || "—"} />
           </dl>
+          {isAdmin && (
+            <div className="flex justify-end px-5 pb-5">
+              <ReopenRegisterButton cashRegisterId={cashRegisterId} />
+            </div>
+          )}
         </Card>
       )}
 

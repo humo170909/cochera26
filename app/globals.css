@@ -155,6 +155,11 @@ body {
 }
 
 @media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
   #app-root {
     display: none;
   }

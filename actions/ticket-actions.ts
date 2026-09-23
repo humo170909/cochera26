@@ -142,3 +142,40 @@ export async function logTicketPrinted(input: unknown): Promise<ActionResult> {
   });
   return {};
 }
+
+const exitIdSchema = z.object({ exitId: z.uuid() });
+
+/** Equivalente a logTicketPrintRequested/logTicketPrinted pero para el
+ * comprobante de SALIDA: no existe una tabla `entry_tickets` para este
+ * recibo (no tiene fin anticopia, solo es un comprobante posterior al
+ * cobro ya registrado), así que se audita directamente contra
+ * `vehicle_exits` reutilizando el mismo log_audit_event() genérico. */
+export async function logExitTicketPrintRequested(input: unknown): Promise<ActionResult> {
+  await requireAuth();
+  const parsed = exitIdSchema.safeParse(input);
+  if (!parsed.success) return { error: "Salida inválida." };
+
+  const supabase = await createClient();
+  await supabase.rpc("log_audit_event", {
+    p_action: "EXIT_TICKET_PRINT_REQUESTED",
+    p_entity_type: "vehicle_exits",
+    p_entity_id: parsed.data.exitId,
+    p_details: {},
+  });
+  return {};
+}
+
+export async function logExitTicketPrinted(input: unknown): Promise<ActionResult> {
+  await requireAuth();
+  const parsed = exitIdSchema.safeParse(input);
+  if (!parsed.success) return { error: "Salida inválida." };
+
+  const supabase = await createClient();
+  await supabase.rpc("log_audit_event", {
+    p_action: "EXIT_TICKET_PRINTED",
+    p_entity_type: "vehicle_exits",
+    p_entity_id: parsed.data.exitId,
+    p_details: {},
+  });
+  return {};
+}
