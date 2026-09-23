@@ -1,26 +1,37 @@
-// Placeholder profesional de logo. Ver public/logo/README.md para
-// reemplazarlo por el logo definitivo de la empresa.
+import Image from "next/image";
+
+/**
+ * logocochera.png es el arte promocional completo (isotipo + "KRD PARK" +
+ * "ESTACIONAMIENTO" + tagline en cuatro íconos), pensado para un afiche, no
+ * para un logo de barra de navegación. En vez de encogerlo entero (el
+ * texto quedaría ilegible a este tamaño) se recorta vía CSS
+ * (object-fit: cover + object-position: top) para mostrar solo el isotipo
+ * (auto + techo + "P") que ocupa la franja superior de la imagen — sin
+ * generar ni deformar ninguna imagen nueva, es el mismo archivo, solo una
+ * ventana distinta sobre él. El nombre "KRD PARK" se escribe aparte con la
+ * tipografía propia de la plataforma (nítido en cualquier tamaño/tema),
+ * usando el mismo azul de marca que ya tiene "PARK" en el arte original.
+ */
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <svg
-        width="34"
-        height="34"
-        viewBox="0 0 34 34"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0"
-        aria-hidden
+    <div className="flex items-center gap-3">
+      <div
+        className={`relative shrink-0 overflow-hidden rounded-lg aspect-[1254/690] ${
+          compact ? "h-10" : "h-[52px] sm:h-14"
+        }`}
       >
-        <rect width="34" height="34" rx="9" fill="var(--primary)" />
-        <path
-          d="M11 24V10h6.2c3.1 0 5.3 2 5.3 4.9 0 2.9-2.2 4.9-5.3 4.9H14v4.2h-3Zm3-6.9h2.9c1.4 0 2.3-.8 2.3-2.2 0-1.4-.9-2.2-2.3-2.2H14v4.4Z"
-          fill="white"
+        <Image
+          src="/logocochera.png"
+          alt="KRD Park"
+          fill
+          sizes="120px"
+          className="object-cover object-top"
+          priority
         />
-      </svg>
+      </div>
       {!compact && (
-        <span className="text-base font-bold tracking-tight text-foreground">
-          PARKING <span className="font-light text-muted">ADMIN</span>
+        <span className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+          KRD <span className="text-accent">PARK</span>
         </span>
       )}
     </div>

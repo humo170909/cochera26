@@ -3,8 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import { logout } from "@/actions/auth-actions";
 import { Icons } from "@/components/layout/Icons";
-import { ROLE_LABELS } from "@/lib/constants";
 import type { UserRole } from "@/types/database";
+
+// Etiqueta propia de este encabezado (no ROLE_LABELS de lib/constants):
+// esa constante también alimenta el selector de rol en /usuarios al crear
+// o editar cuentas, donde "Trabajador" sigue siendo el nombre correcto del
+// rol interno. Acá, de cara al propio colaborador, se pidió mostrar
+// "Colaborador" en su lugar — un cambio solo de este saludo, no del rol.
+const TOPBAR_ROLE_LABELS: Record<UserRole, string> = {
+  ADMIN: "Administrador",
+  TRABAJADOR: "Colaborador",
+};
 
 export function UserMenu({
   nombre,
@@ -41,7 +50,7 @@ export function UserMenu({
           <span className="block text-sm font-semibold leading-tight text-foreground">
             {nombre} {apellido}
           </span>
-          <span className="block text-xs leading-tight text-muted">{ROLE_LABELS[rol]}</span>
+          <span className="block text-xs leading-tight text-muted">{TOPBAR_ROLE_LABELS[rol]}</span>
         </span>
         <Icons.chevronDown className="text-muted" />
       </button>
