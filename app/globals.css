@@ -148,6 +148,26 @@ body {
    remoción REAL del documento, alto cero, sin nada que paginar — y lo
    único que puede imprimirse es el ticket portado. Ya no se necesita el
    truco de visibility ni position:absolute/fixed para nada.
+
+   POSICIÓN VERTICAL (prueba física con impresora térmica configurada como
+   "Thermal Paper 80 x 210"): se auditó TODO el árbol que queda visible en
+   impresión (html, body, #app-root, el portal de PrintTicketModal/
+   PrintExitTicketModal, .ticket-print en TicketLayout/ExitTicketLayout, y
+   Modal.tsx) y NO existe ninguna regla de centrado vertical en este
+   proyecto — nada de display:flex+align-items/justify-content:center,
+   height/min-height:210mm ni 100vh/100%, transform:translateY, ni
+   top/margin-top/padding-top artificiales. Modal.tsx sí centra su propio
+   diálogo en pantalla con "flex items-center justify-center", pero ese
+   nodo vive DENTRO de #app-root, así que "display:none" de acá abajo lo
+   elimina por completo en impresión (nunca llega a imprimirse).
+   El origen más probable es el propio DRIVER/spooler de la impresora
+   térmica: "Thermal Paper 80 x 210" es un tamaño de página FIJO (no un
+   rollo continuo), así que el navegador debe maquetar sobre un lienzo de
+   210mm de alto pase lo que pase con `@page { size: 80mm auto }" — si el
+   contenido real mide, por ejemplo, 60mm, es el driver quien decide dónde
+   ubicarlo dentro de esos 210mm. Las reglas de abajo son la única
+   defensa posible desde CSS: fuerzan altura automática (nunca 210mm) y
+   cero márgenes en cualquier navegador que sí respete el contenido web.
    ============================================================================= */
 @page {
   size: 80mm auto;
@@ -157,10 +177,17 @@ body {
 @media print {
   html,
   body {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
   #app-root {
     display: none;
+  }
+  .ticket-print {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 auto !important;
   }
 }

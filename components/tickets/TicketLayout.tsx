@@ -41,6 +41,10 @@ export function TicketLayout({ ticket }: { ticket: EntryTicket }) {
       <Divider />
 
       <p className="text-center text-[11px]">Conserve este ticket.</p>
+      <p className="mt-1 text-center text-[11px] leading-snug">
+        CIERRE BIEN SU VEHICULO LA EMPRESA NO SE RESPONSABILIZA POR PERDIDAS
+      </p>
+      <p className="text-center text-[11px]">TOLERANCIA 5 MINUTOS</p>
     </div>
   );
 }
