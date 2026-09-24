@@ -55,6 +55,14 @@ export const vehicleEntrySchema = z.object({
   useFlatRate: z.boolean().default(false),
 });
 
+/** Corrección de tipo de vehículo de un ingreso ACTIVO (colaborador o
+ * admin) — ver update_active_entry_vehicle_type(). No incluye placa,
+ * espacio ni fechas a propósito: esta función nunca los toca. */
+export const updateEntryVehicleTypeSchema = z.object({
+  entryId: z.uuid(),
+  vehicleType: vehicleTypeSchema,
+});
+
 export const tariffTypeSchema = z.enum(["HORA", "ABONADO", "PLANA"]);
 
 export const vehicleExitSchema = z.object({
@@ -67,6 +75,25 @@ export const vehicleExitSchema = z.object({
 export const validateTicketSchema = z.object({
   code: z.string().trim().min(1, "Ingresa el código del ticket."),
   expectedEntryId: z.uuid().optional().nullable(),
+});
+
+/** Exclusivo ADMIN — corrección de un ingreso/salida ya finalizado (ver
+ * admin_update_vehicle_visit). Los datetime-local llegan como
+ * "yyyy-MM-ddTHH:mm" (sin zona); se validan como string no vacío acá, la
+ * conversión a instante absoluto (America/Lima) ocurre en el server action. */
+export const updateVehicleVisitSchema = z.object({
+  exitId: z.uuid(),
+  plate: plateSchema,
+  vehicleType: vehicleTypeSchema,
+  spotId: z.uuid("Selecciona un estacionamiento válido."),
+  entryAt: z.string().min(1, "Indica la fecha/hora de ingreso."),
+  exitAt: z.string().min(1, "Indica la fecha/hora de salida."),
+  paymentMethod: paymentMethodSchema.nullable(),
+  amount: z.coerce.number().min(0, "El importe no puede ser negativo."),
+});
+
+export const deleteVehicleVisitSchema = z.object({
+  exitId: z.uuid(),
 });
 
 export const restroomUseSchema = z.object({

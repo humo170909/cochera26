@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/dal";
-import { vehicleEntrySchema, vehicleExitSchema } from "@/lib/validation";
+import { vehicleEntrySchema, vehicleExitSchema, updateEntryVehicleTypeSchema } from "@/lib/validation";
 import type { VehicleExitDetail } from "@/types/domain";
-import type { PaymentMethod, TariffType } from "@/types/database";
+import type { PaymentMethod, TariffType, VehicleType } from "@/types/database";
 
 interface VehicleExitRpcResult {
   id: string;
@@ -109,4 +109,39 @@ export async function registerVehicleExit(
       toleranceMinutesApplied: data.tolerance_minutes_applied,
     },
   };
+}
+
+/** Disponible para COLABORADOR y ADMIN — corrige únicamente el tipo de
+ * vehículo de un ingreso que TODAVÍA está activo (vehículo adentro). No
+ * acepta placa, espacio ni fechas: solo existe para arreglar una mala
+ * clasificación al momento del ingreso. */
+export async function updateEntryVehicleType(
+  input: unknown
+): Promise<ActionResult<{ vehicleType: VehicleType }>> {
+  await requireAuth();
+
+  const parsed = updateEntryVehicleTypeSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("update_active_entry_vehicle_type", {
+      p_entry_id: parsed.data.entryId,
+      p_vehicle_type: parsed.data.vehicleType,
+    })
+    .single()
+    .returns<{ vehicle_type: VehicleType }>();
+
+  if (error || !data) {
+    return { error: error?.message ?? "No se pudo actualizar el tipo de vehículo." };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/estacionamientos");
+  revalidatePath("/ingreso");
+  revalidatePath("/salida");
+
+  return { data: { vehicleType: data.vehicle_type } };
 }

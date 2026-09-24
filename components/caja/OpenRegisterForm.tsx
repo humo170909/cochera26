@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -12,17 +12,28 @@ export function OpenRegisterForm() {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Guardia síncrona contra doble clic/doble Enter (mismo patrón que
+  // CashMovementModal): open_cash_register() ya rechaza una segunda
+  // apertura por business_date UNIQUE, esto solo evita el toast de error
+  // innecesario de un envío duplicado por accidente.
+  const submittingRef = useRef(false);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await openCashRegister({ openingAmount: amount });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await openCashRegister({ openingAmount: amount });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        showToast("Caja aperturada correctamente.", "success");
+      } finally {
+        submittingRef.current = false;
       }
-      showToast("Caja aperturada correctamente.", "success");
     });
   };
 

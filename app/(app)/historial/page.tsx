@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { requireAuth } from "@/lib/auth/dal";
 import { getVehicleHistory } from "@/services/history";
 import { getActiveWorkers } from "@/services/users";
+import { getParkingSpots } from "@/services/parking";
+import { VisitRowActions } from "@/components/historial/VisitRowActions";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Select, Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -33,8 +36,11 @@ export default async function HistorialPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const profile = await requireAuth();
+  const isAdmin = profile.rol === "ADMIN";
+
   const params = await searchParams;
-  const [rows, workers] = await Promise.all([
+  const [rows, workers, spots] = await Promise.all([
     getVehicleHistory({
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
@@ -45,7 +51,9 @@ export default async function HistorialPage({
       tariffType: params.tariffType as TariffType | undefined,
     }),
     getActiveWorkers(),
+    isAdmin ? getParkingSpots() : Promise.resolve([]),
   ]);
+  const spotOptions = spots.map((s) => ({ id: s.id, code: s.code }));
 
   const totalAmount = rows.reduce((sum, r) => sum + r.amount, 0);
 
@@ -136,12 +144,13 @@ export default async function HistorialPage({
                 <th className="px-5 py-3">Total</th>
                 <th className="px-5 py-3">Método</th>
                 <th className="px-5 py-3">Trabajador</th>
+                {isAdmin && <th className="px-5 py-3">Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-muted">
+                  <td colSpan={isAdmin ? 10 : 9} className="px-5 py-10 text-center text-muted">
                     No hay operaciones con los filtros seleccionados.
                   </td>
                 </tr>
@@ -164,6 +173,11 @@ export default async function HistorialPage({
                     {r.paymentMethod ? PAYMENT_METHOD_LABELS[r.paymentMethod] : "—"}
                   </td>
                   <td className="px-5 py-3 text-muted">{r.workerName || "—"}</td>
+                  {isAdmin && (
+                    <td className="px-5 py-3">
+                      <VisitRowActions row={r} spots={spotOptions} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

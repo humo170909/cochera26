@@ -5,6 +5,7 @@ import { OpenRegisterForm } from "@/components/caja/OpenRegisterForm";
 import { CashSummaryGrid } from "@/components/caja/CashSummaryGrid";
 import { CashMovementModal } from "@/components/caja/CashMovementModal";
 import { CloseRegisterModal } from "@/components/caja/CloseRegisterModal";
+import { WorkerCloseRegisterModal } from "@/components/caja/WorkerCloseRegisterModal";
 import { ReopenRegisterButton } from "@/components/caja/ReopenRegisterButton";
 import { ResetDailyOperationsButton } from "@/components/caja/ResetDailyOperationsButton";
 import { DashboardRealtimeRefresher } from "@/components/dashboard/DashboardRealtimeRefresher";
@@ -75,11 +76,19 @@ async function RegisterDetails({
       {register.status === "ABIERTA" && (
         <div className="flex flex-wrap gap-3">
           <CashMovementModal cashRegisterId={cashRegisterId} />
-          <CloseRegisterModal
-            cashRegisterId={cashRegisterId}
-            openingAmount={register.openingAmount}
-            cashNet={summary.efectivo}
-          />
+          {isAdmin ? (
+            <CloseRegisterModal
+              cashRegisterId={cashRegisterId}
+              openingAmount={register.openingAmount}
+              cashNet={summary.efectivo}
+            />
+          ) : (
+            <WorkerCloseRegisterModal
+              cashRegisterId={cashRegisterId}
+              openingAmount={register.openingAmount}
+              summary={summary}
+            />
+          )}
         </div>
       )}
 

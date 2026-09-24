@@ -39,7 +39,11 @@ export function ParkingGrid({
   flatRateCapacity: FlatRateCapacity;
   mode: ParkingGridMode;
 }) {
-  useRealtimeRefresh(["parking_spots"]);
+  // "vehicle_entries" se agregó porque update_active_entry_vehicle_type()
+  // (corrección de tipo de vehículo) solo toca esa tabla, nunca
+  // parking_spots — sin esto, el tipo corregido no se reflejaba en la
+  // grilla hasta una recarga manual de la página.
+  useRealtimeRefresh(["parking_spots", "vehicle_entries"]);
 
   const [entryTarget, setEntryTarget] = useState<{ id: string; code: string } | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<ParkingSpotWithEntry | null>(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
@@ -23,6 +23,10 @@ export function CloseRegisterModal({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Guardia síncrona contra doble clic/doble Enter (mismo patrón que
+  // CashMovementModal): close_cash_register() ya rechaza un segundo cierre
+  // (status <> 'ABIERTA'), esto solo evita el toast de error innecesario.
+  const submittingRef = useRef(false);
 
   const expected = openingAmount + cashNet;
   const declaredNumber = Number(declared || 0);
@@ -37,15 +41,21 @@ export function CloseRegisterModal({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const result = await closeCashRegister({ cashRegisterId, declaredAmount: declared, notes: notes || null });
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await closeCashRegister({ cashRegisterId, declaredAmount: declared, notes: notes || null });
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        showToast("Caja cerrada correctamente.", "success");
+        close();
+      } finally {
+        submittingRef.current = false;
       }
-      showToast("Caja cerrada correctamente.", "success");
-      close();
     });
   };
 

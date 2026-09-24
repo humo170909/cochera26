@@ -83,6 +83,33 @@ export function formatDateOnly(isoDate: string): string {
   return `${day}/${month}/${year}`;
 }
 
+/** Convierte un timestamptz a "yyyy-MM-ddTHH:mm" en hora de Lima, listo
+ * para el valor de un <input type="datetime-local">. Lima es UTC-5 fijo
+ * (sin horario de verano), así que basta leer los componentes locales con
+ * Intl — no hace falta ninguna librería de zonas horarias. */
+export function toLimaInputValue(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}`;
+}
+
+/** Inverso de toLimaInputValue: interpreta "yyyy-MM-ddTHH:mm" como hora de
+ * Lima (UTC-5 fijo) y devuelve el instante absoluto en ISO (UTC). */
+export function fromLimaInputValue(value: string): string {
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour + 5, minute)).toISOString();
+}
+
 /** Fecha de negocio (yyyy-MM-dd) según el calendario de Lima, para agrupar por "día". */
 export function businessDateLima(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
