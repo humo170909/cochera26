@@ -58,11 +58,13 @@ export const vehicleEntrySchema = z.object({
   flatRatePeriod: flatRatePeriodSchema.optional().nullable(),
 });
 
-/** Corrección de tipo de vehículo de un ingreso ACTIVO (colaborador o
- * admin) — ver update_active_entry_vehicle_type(). No incluye placa,
- * espacio ni fechas a propósito: esta función nunca los toca. */
-export const updateEntryVehicleTypeSchema = z.object({
+/** Corrección de placa y tipo de un ingreso ACTIVO (colaborador o admin)
+ * — ver update_active_entry_details(). No incluye espacio, fechas, tarifa
+ * ni pago a propósito: esta función nunca los toca. Reutiliza plateSchema
+ * (misma validación/normalización que register_vehicle_entry). */
+export const updateEntryDetailsSchema = z.object({
   entryId: z.uuid(),
+  plate: plateSchema,
   vehicleType: vehicleTypeSchema,
 });
 

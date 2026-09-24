@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/dal";
-import { vehicleEntrySchema, vehicleExitSchema, updateEntryVehicleTypeSchema } from "@/lib/validation";
+import { vehicleEntrySchema, vehicleExitSchema, updateEntryDetailsSchema } from "@/lib/validation";
 import type { VehicleExitDetail } from "@/types/domain";
 import type { PaymentMethod, TariffType, VehicleType } from "@/types/database";
 
@@ -112,31 +112,34 @@ export async function registerVehicleExit(
   };
 }
 
-/** Disponible para COLABORADOR y ADMIN — corrige únicamente el tipo de
+/** Disponible para COLABORADOR y ADMIN — corrige placa y/o tipo de
  * vehículo de un ingreso que TODAVÍA está activo (vehículo adentro). No
- * acepta placa, espacio ni fechas: solo existe para arreglar una mala
- * clasificación al momento del ingreso. */
-export async function updateEntryVehicleType(
+ * acepta espacio, fechas, tarifa ni pago: solo existe para arreglar un
+ * error de digitación/clasificación al momento del ingreso. La validación
+ * de "placa duplicada" y la normalización viven en el RPC (misma fuente
+ * de verdad que register_vehicle_entry). */
+export async function updateEntryDetails(
   input: unknown
-): Promise<ActionResult<{ vehicleType: VehicleType }>> {
+): Promise<ActionResult<{ plate: string; vehicleType: VehicleType }>> {
   await requireAuth();
 
-  const parsed = updateEntryVehicleTypeSchema.safeParse(input);
+  const parsed = updateEntryDetailsSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
 
   const supabase = await createClient();
   const { data, error } = await supabase
-    .rpc("update_active_entry_vehicle_type", {
+    .rpc("update_active_entry_details", {
       p_entry_id: parsed.data.entryId,
+      p_plate: parsed.data.plate,
       p_vehicle_type: parsed.data.vehicleType,
     })
     .single()
-    .returns<{ vehicle_type: VehicleType }>();
+    .returns<{ plate: string; vehicle_type: VehicleType }>();
 
   if (error || !data) {
-    return { error: error?.message ?? "No se pudo actualizar el tipo de vehículo." };
+    return { error: error?.message ?? "No se pudieron guardar los cambios." };
   }
 
   revalidatePath("/dashboard");
@@ -144,5 +147,5 @@ export async function updateEntryVehicleType(
   revalidatePath("/ingreso");
   revalidatePath("/salida");
 
-  return { data: { vehicleType: data.vehicle_type } };
+  return { data: { plate: data.plate, vehicleType: data.vehicle_type } };
 }
