@@ -14,8 +14,10 @@ import { PrintTicketModal } from "@/components/tickets/PrintTicketModal";
 import { isFlatRateEligibleNow } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
 import { VEHICLE_TYPES, VEHICLE_TYPE_LABELS } from "@/lib/constants";
-import type { VehicleType } from "@/types/database";
+import type { FlatRatePeriod, VehicleType } from "@/types/database";
 import type { EntryTicket, FlatRateCapacity, FlatRateSettings } from "@/types/domain";
+
+type TariffMode = "HORA" | "PLANA";
 
 interface FreeSpotOption {
   id: string;
@@ -41,7 +43,8 @@ export function VehicleEntryModal({
   const [plate, setPlate] = useState("");
   const [vehicleType, setVehicleType] = useState<VehicleType>("AUTO");
   const [spotId, setSpotId] = useState(fixedSpot?.id ?? freeSpots[0]?.id ?? "");
-  const [useFlatRate, setUseFlatRate] = useState(false);
+  const [tariffMode, setTariffMode] = useState<TariffMode>("HORA");
+  const [flatPeriod, setFlatPeriod] = useState<FlatRatePeriod>("PLANA_DIA");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [ticketToPrint, setTicketToPrint] = useState<EntryTicket | null>(null);
@@ -57,16 +60,23 @@ export function VehicleEntryModal({
 
   const isFreeEntry =
     plateStatus?.kind === "AUTORIZADO" || (plateStatus?.kind === "ABONADO" && plateStatus.displayStatus === "ACTIVO");
-  const flatRateEligibleNow =
-    flatRateSettings.activo && isFlatRateEligibleNow(flatRateSettings.horaLimite, flatRateSettings.diasAplicacion, new Date());
+  // DÍA conserva EXACTAMENTE la misma ventana horaria que ya tenía la
+  // única tarifa plana que existía antes (ver 0023). NOCHE es nueva y no
+  // depende de la hora actual — solo de que la tarifa plana esté activa.
+  const dayEligibleNow = isFlatRateEligibleNow(flatRateSettings.horaLimite, flatRateSettings.diasAplicacion, new Date());
   const flatRateHasCapacity = flatRateCapacity.disponibles > 0;
-  const flatRateOfferable = flatRateEligibleNow && !isFreeEntry;
+  const flatRateOfferable = flatRateSettings.activo && !isFreeEntry;
 
   const close = () => {
     setPlate("");
-    setUseFlatRate(false);
+    setTariffMode("HORA");
     setError(null);
     onClose();
+  };
+
+  const selectFlatRate = () => {
+    setTariffMode("PLANA");
+    setFlatPeriod(dayEligibleNow ? "PLANA_DIA" : "PLANA_NOCHE");
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -83,11 +93,13 @@ export function VehicleEntryModal({
     submittingRef.current = true;
     startTransition(async () => {
       try {
+        const useFlatRate = tariffMode === "PLANA" && flatRateOfferable && flatRateHasCapacity;
         const result = await registerVehicleEntry({
           plate,
           vehicleType,
           spotId: targetSpotId,
-          useFlatRate: useFlatRate && flatRateOfferable && flatRateHasCapacity,
+          useFlatRate,
+          flatRatePeriod: useFlatRate ? flatPeriod : null,
         });
         if (result.error || !result.data) {
           setError(result.error ?? "No se pudo registrar el ingreso.");
@@ -159,43 +171,85 @@ export function VehicleEntryModal({
 
           <ClientTypeCard plateEntered={plate.trim().length >= 5} loading={lookupLoading} result={plateStatus} />
 
-          {flatRateOfferable && (
-            <label
-              className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${
-                flatRateHasCapacity
-                  ? "border-border bg-surface cursor-pointer"
-                  : "border-danger/30 bg-danger-bg cursor-not-allowed"
-              }`}
-            >
-              <span>
-                {flatRateHasCapacity ? (
-                  <>
-                    <span className="block text-sm font-bold text-foreground">
-                      Usar tarifa plana ({formatCurrency(flatRateSettings.precio)})
-                    </span>
-                    <span className="block text-xs text-muted">
-                      Cupos: {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="block text-sm font-bold text-danger">
-                      🔴 TARIFA PLANA COMPLETA
-                    </span>
-                    <span className="block text-xs text-danger">
-                      {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo} vehículos — sin cupos disponibles
-                    </span>
-                  </>
-                )}
-              </span>
-              <input
-                type="checkbox"
-                checked={useFlatRate && flatRateHasCapacity}
-                disabled={!flatRateHasCapacity}
-                onChange={(e) => setUseFlatRate(e.target.checked)}
-                className="h-5 w-5 shrink-0 rounded border-border"
-              />
-            </label>
+          {!isFreeEntry && (
+            <div>
+              <p className="mb-1.5 text-sm font-medium text-foreground">Tarifa</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTariffMode("HORA")}
+                  className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
+                    tariffMode === "HORA"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-surface text-foreground hover:bg-surface-2"
+                  }`}
+                >
+                  Por hora
+                </button>
+                <button
+                  type="button"
+                  onClick={selectFlatRate}
+                  disabled={!flatRateOfferable}
+                  className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    tariffMode === "PLANA"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-surface text-foreground hover:bg-surface-2"
+                  }`}
+                >
+                  Tarifa plana
+                </button>
+              </div>
+
+              {tariffMode === "PLANA" && flatRateOfferable && (
+                <div className="mt-2">
+                  {flatRateHasCapacity ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFlatPeriod("PLANA_DIA")}
+                          disabled={!dayEligibleNow}
+                          className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                            flatPeriod === "PLANA_DIA"
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-surface text-foreground hover:bg-surface-2"
+                          }`}
+                        >
+                          ☀ Tarifa plana día
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFlatPeriod("PLANA_NOCHE")}
+                          className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
+                            flatPeriod === "PLANA_NOCHE"
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-surface text-foreground hover:bg-surface-2"
+                          }`}
+                        >
+                          ☾ Tarifa plana noche
+                        </button>
+                      </div>
+                      {!dayEligibleNow && (
+                        <p className="mt-1.5 text-xs text-muted">
+                          Tarifa plana día no disponible en este horario — se ofrece solo tarifa plana noche.
+                        </p>
+                      )}
+                      <p className="mt-1.5 text-xs font-semibold text-foreground">
+                        {formatCurrency(flatPeriod === "PLANA_NOCHE" ? flatRateSettings.precioNoche : flatRateSettings.precio)}
+                        {" · "}Cupos: {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-danger/30 bg-danger-bg px-4 py-3">
+                      <p className="text-sm font-bold text-danger">🔴 TARIFA PLANA COMPLETA</p>
+                      <p className="text-xs text-danger">
+                        {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo} vehículos — sin cupos disponibles
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {!fixedSpot && (

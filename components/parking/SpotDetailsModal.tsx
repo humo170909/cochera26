@@ -125,7 +125,7 @@ export function SpotDetailsModal({
           )}
           {!entry.isAuthorized && !entry.coveredBySubscription && entry.flatRateReserved && (
             <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-center text-sm font-bold text-foreground">
-              TARIFA PLANA RESERVADA
+              {entry.flatRatePeriod === "PLANA_NOCHE" ? "TARIFA PLANA NOCHE RESERVADA" : "TARIFA PLANA DÍA RESERVADA"}
             </div>
           )}
 

@@ -61,8 +61,8 @@ export function FlatRateEditor({ initial, capacity }: { initial: FlatRateSetting
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Precio (S/)" htmlFor="plana-precio">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <Field label="Precio día (S/)" htmlFor="plana-precio">
           <Input
             id="plana-precio"
             type="number"
@@ -72,7 +72,17 @@ export function FlatRateEditor({ initial, capacity }: { initial: FlatRateSetting
             onChange={(e) => setForm((f) => ({ ...f, precio: Number(e.target.value) }))}
           />
         </Field>
-        <Field label="Hora límite (sale antes de)" htmlFor="plana-hora">
+        <Field label="Precio noche (S/)" htmlFor="plana-precio-noche">
+          <Input
+            id="plana-precio-noche"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={form.precioNoche}
+            onChange={(e) => setForm((f) => ({ ...f, precioNoche: Number(e.target.value) }))}
+          />
+        </Field>
+        <Field label="Hora límite (día, sale antes de)" htmlFor="plana-hora">
           <Input
             id="plana-hora"
             type="time"
@@ -93,7 +103,7 @@ export function FlatRateEditor({ initial, capacity }: { initial: FlatRateSetting
       </div>
 
       <div className="mt-4">
-        <p className="mb-1.5 text-sm font-medium text-foreground">Días de aplicación</p>
+        <p className="mb-1.5 text-sm font-medium text-foreground">Días de aplicación (tarifa día)</p>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((d) => (
             <button
@@ -119,7 +129,7 @@ export function FlatRateEditor({ initial, capacity }: { initial: FlatRateSetting
           onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
           className="h-4 w-4 rounded border-border"
         />
-        Tarifa plana activa
+        Tarifa plana activa (día y noche)
       </label>
 
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
@@ -130,7 +140,7 @@ export function FlatRateEditor({ initial, capacity }: { initial: FlatRateSetting
       <ConfirmDialog
         open={confirming}
         title="¿Confirmar cambio de tarifa plana?"
-        description={`Precio: ${formatCurrency(initial.precio)} → ${formatCurrency(form.precio)}. Hora límite: ${initial.horaLimite} → ${form.horaLimite}. Cupo máximo: ${initial.cupoMaximo} → ${form.cupoMaximo}.`}
+        description={`Precio día: ${formatCurrency(initial.precio)} → ${formatCurrency(form.precio)}. Precio noche: ${formatCurrency(initial.precioNoche)} → ${formatCurrency(form.precioNoche)}. Hora límite: ${initial.horaLimite} → ${form.horaLimite}. Cupo máximo: ${initial.cupoMaximo} → ${form.cupoMaximo}.`}
         confirmLabel="Confirmar cambio"
         pending={pending}
         onConfirm={onConfirm}

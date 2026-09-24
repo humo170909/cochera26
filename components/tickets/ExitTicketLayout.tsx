@@ -14,11 +14,14 @@ export function ExitTicketLayout({ ticket }: { ticket: ExitTicket }) {
   const exit = new Date(ticket.exitAt);
   const noCharge = ticket.tariffType === "ABONADO" || ticket.tariffType === "AUTORIZADO";
 
-  const tariffLabel = noCharge
-    ? `${ticket.tariffType} (SIN COBRO)`
-    : ticket.tariffType === "PLANA"
-      ? `${formatCurrency(ticket.tariffApplied)} (PLANA)`
-      : `${formatCurrency(ticket.tariffApplied)} / HORA`;
+  const tariffLabel =
+    ticket.tariffType === "PLANA_NOCHE"
+      ? "PLANA NOCHE"
+      : ticket.tariffType === "PLANA_DIA" || ticket.tariffType === "PLANA"
+        ? "PLANA DÍA"
+        : ticket.tariffType === "HORA"
+          ? "POR HORA"
+          : `${ticket.tariffType} (SIN COBRO)`;
 
   const paymentLabel = noCharge
     ? "SIN COBRO"

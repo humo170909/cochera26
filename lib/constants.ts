@@ -82,12 +82,14 @@ export const SUBSCRIBER_EDITABLE_STATUSES: SubscriberStatus[] = [
   "CANCELADO",
 ];
 
-export const TARIFF_TYPES: TariffType[] = ["HORA", "PLANA", "ABONADO", "AUTORIZADO"];
+export const TARIFF_TYPES: TariffType[] = ["HORA", "PLANA_DIA", "PLANA_NOCHE", "ABONADO", "AUTORIZADO"];
 
 export const TARIFF_TYPE_LABELS: Record<TariffType, string> = {
   HORA: "Por hora",
   ABONADO: "Abonado",
   PLANA: "Tarifa plana",
+  PLANA_DIA: "Tarifa plana día",
+  PLANA_NOCHE: "Tarifa plana noche",
   AUTORIZADO: "Vehículo autorizado",
 };
 

@@ -48,11 +48,14 @@ export const paymentMethodSchema = z.enum([
   "TRANSFERENCIA",
 ]);
 
+export const flatRatePeriodSchema = z.enum(["PLANA_DIA", "PLANA_NOCHE"]);
+
 export const vehicleEntrySchema = z.object({
   plate: plateSchema,
   vehicleType: vehicleTypeSchema,
   spotId: z.uuid("Selecciona un estacionamiento válido."),
   useFlatRate: z.boolean().default(false),
+  flatRatePeriod: flatRatePeriodSchema.optional().nullable(),
 });
 
 /** Corrección de tipo de vehículo de un ingreso ACTIVO (colaborador o
@@ -153,6 +156,7 @@ export const toleranceSettingsSchema = z.object({
 
 export const flatRateSettingsSchema = z.object({
   precio: z.coerce.number().positive("El precio debe ser mayor a cero."),
+  precioNoche: z.coerce.number().positive("El precio de noche debe ser mayor a cero."),
   horaLimite: timeSchema,
   diasAplicacion: z.array(z.number().int().min(0).max(6)).min(1, "Selecciona al menos un día."),
   activo: z.boolean(),

@@ -64,6 +64,7 @@ export function ParkingGrid({
       coveredBySubscription: entry.coveredBySubscription,
       subscriberName: entry.subscriberName,
       flatRateReserved: entry.flatRateReserved,
+      flatRatePeriod: entry.flatRatePeriod,
       flatRatePriceSnapshot: entry.flatRatePriceSnapshot,
       isAuthorized: entry.isAuthorized,
       authorizedOwnerName: entry.authorizedOwnerName,

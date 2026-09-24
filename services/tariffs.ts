@@ -74,6 +74,7 @@ export async function getToleranceSettings(): Promise<ToleranceSettings> {
 
 const DEFAULT_FLAT_RATE: FlatRateSettings = {
   precio: 15,
+  precioNoche: 15,
   horaLimite: "19:00",
   diasAplicacion: [0, 1, 2, 3, 4, 5, 6],
   activo: true,
@@ -84,7 +85,7 @@ export async function getFlatRateSettings(): Promise<FlatRateSettings> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("flat_rate_settings")
-    .select("precio, hora_limite, dias_aplicacion, activo, cupo_maximo")
+    .select("precio, precio_noche, hora_limite, dias_aplicacion, activo, cupo_maximo")
     .eq("id", true)
     .single();
 
@@ -92,6 +93,7 @@ export async function getFlatRateSettings(): Promise<FlatRateSettings> {
 
   return {
     precio: Number(data.precio),
+    precioNoche: Number(data.precio_noche),
     horaLimite: data.hora_limite.slice(0, 5),
     diasAplicacion: data.dias_aplicacion,
     activo: data.activo,

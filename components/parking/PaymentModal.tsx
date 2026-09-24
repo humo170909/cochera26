@@ -11,7 +11,7 @@ import { registerVehicleExit } from "@/actions/vehicle-actions";
 import { getEntryTicket } from "@/actions/ticket-actions";
 import { PrintExitTicketModal } from "@/components/tickets/PrintExitTicketModal";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, VEHICLE_TYPE_LABELS } from "@/lib/constants";
-import type { PaymentMethod, VehicleType } from "@/types/database";
+import type { FlatRatePeriod, PaymentMethod, VehicleType } from "@/types/database";
 import type { ExitTicket, FlatRateSettings, ToleranceSettings } from "@/types/domain";
 
 export interface ExitTarget {
@@ -24,6 +24,7 @@ export interface ExitTarget {
   coveredBySubscription: boolean;
   subscriberName: string | null;
   flatRateReserved: boolean;
+  flatRatePeriod: FlatRatePeriod | null;
   flatRatePriceSnapshot: number | null;
   isAuthorized: boolean;
   authorizedOwnerName: string | null;
@@ -160,15 +161,23 @@ export function PaymentModal({
               <p className="mt-1 text-sm text-info">Esta salida no requiere cobro.</p>
             </div>
           ) : willUseFlatRate ? (
-            <p className="mt-3 text-center text-xs font-semibold text-muted">
-              Tarifa plana reservada al ingreso — {formatCurrency(flatRateAmount)}
-            </p>
+            <div className="mt-4 rounded-2xl border border-border bg-surface-2 p-4 text-center">
+              <p className="font-bold text-foreground">
+                {target.flatRatePeriod === "PLANA_NOCHE" ? "TARIFA PLANA NOCHE" : "TARIFA PLANA DÍA"}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Reservada al ingreso — {formatCurrency(flatRateAmount)}
+              </p>
+            </div>
           ) : (
             hourlyFee && (
-              <p className="mt-2 text-center text-xs text-muted">
-                {formatCurrency(target.pricePerHour)}/hora · tolerancia {hourlyFee.toleranceApplied} min ·{" "}
-                {hourlyFee.billedHours} {hourlyFee.billedHours === 1 ? "hora facturada" : "horas facturadas"}
-              </p>
+              <div className="mt-3 text-center">
+                <p className="text-sm font-bold text-foreground">TARIFA POR HORA</p>
+                <p className="mt-1 text-xs text-muted">
+                  {formatCurrency(target.pricePerHour)}/hora · tolerancia {hourlyFee.toleranceApplied} min ·{" "}
+                  {hourlyFee.billedHours} {hourlyFee.billedHours === 1 ? "hora facturada" : "horas facturadas"}
+                </p>
+              </div>
             )
           )}
 

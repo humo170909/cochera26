@@ -28,7 +28,12 @@ export type MovementSource = "VEHICULO" | "BANO" | "OTRO";
 
 export type RegisterStatus = "ABIERTA" | "CERRADA";
 
-export type TariffType = "HORA" | "ABONADO" | "PLANA" | "AUTORIZADO";
+/** "PLANA" se conserva solo por filas históricas anteriores a la
+ * distinción día/noche — todo código nuevo usa PLANA_DIA/PLANA_NOCHE. */
+export type TariffType = "HORA" | "ABONADO" | "PLANA" | "PLANA_DIA" | "PLANA_NOCHE" | "AUTORIZADO";
+
+/** Las dos modalidades que un colaborador puede elegir al ingreso. */
+export type FlatRatePeriod = "PLANA_DIA" | "PLANA_NOCHE";
 
 export type SubscriberStatus = "ACTIVO" | "VENCIDO" | "SUSPENDIDO" | "CANCELADO";
 
@@ -36,7 +41,9 @@ export type AuthorizedVehicleStatus = "ACTIVO" | "INACTIVO";
 
 export type TicketStatus = "ACTIVE" | "USED" | "CANCELLED" | "VOID";
 
-export type TicketTariffType = "HORA" | "PLANA";
+/** "PLANA" se conserva solo por tickets históricos anteriores a la
+ * distinción día/noche. */
+export type TicketTariffType = "HORA" | "PLANA" | "PLANA_DIA" | "PLANA_NOCHE";
 
 export interface CashRegisterSummary {
   efectivo: number;

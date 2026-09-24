@@ -41,6 +41,7 @@ export async function registerVehicleEntry(
       p_vehicle_type: parsed.data.vehicleType,
       p_spot_id: parsed.data.spotId,
       p_use_flat_rate: parsed.data.useFlatRate,
+      p_flat_rate_period: parsed.data.useFlatRate ? (parsed.data.flatRatePeriod ?? null) : null,
     })
     .single()
     .returns<{ id: string; parking_spot_id: string }>();

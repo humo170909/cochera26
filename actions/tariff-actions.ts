@@ -95,6 +95,7 @@ export async function updateFlatRateSettings(input: unknown): Promise<ActionResu
     .from("flat_rate_settings")
     .update({
       precio: parsed.data.precio,
+      precio_noche: parsed.data.precioNoche,
       hora_limite: parsed.data.horaLimite,
       dias_aplicacion: parsed.data.diasAplicacion,
       activo: parsed.data.activo,

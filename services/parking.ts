@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { businessDateLima } from "@/lib/datetime";
-import type { VehicleType } from "@/types/database";
+import type { FlatRatePeriod, VehicleType } from "@/types/database";
 import type { ParkingSpotWithEntry } from "@/types/domain";
 
 interface ParkingSpotRow {
@@ -16,6 +16,7 @@ interface ParkingSpotRow {
     entry_at: string;
     covered_by_subscription: boolean;
     flat_rate_reserved: boolean;
+    flat_rate_period: FlatRatePeriod | null;
     flat_rate_price_snapshot: number | null;
     is_authorized: boolean;
     registrar: { nombre: string; apellido: string } | null;
@@ -41,7 +42,7 @@ export async function getParkingSpots(): Promise<ParkingSpotWithEntry[]> {
       .select(
         `id, code, status, spot_type,
          entry:vehicle_entries!fk_parking_spots_current_entry (
-           id, plate, vehicle_type, entry_at, covered_by_subscription, flat_rate_reserved, flat_rate_price_snapshot, is_authorized,
+           id, plate, vehicle_type, entry_at, covered_by_subscription, flat_rate_reserved, flat_rate_period, flat_rate_price_snapshot, is_authorized,
            registrar:profiles!vehicle_entries_registered_by_fkey ( nombre, apellido ),
            subscriber:subscribers!vehicle_entries_subscriber_id_fkey ( nombre_completo ),
            authorized:authorized_vehicles!vehicle_entries_authorized_vehicle_id_fkey ( propietario )
@@ -81,6 +82,7 @@ export async function getParkingSpots(): Promise<ParkingSpotWithEntry[]> {
           coveredBySubscription: row.entry.covered_by_subscription,
           subscriberName: row.entry.subscriber?.nombre_completo ?? null,
           flatRateReserved: row.entry.flat_rate_reserved,
+          flatRatePeriod: row.entry.flat_rate_period,
           flatRatePriceSnapshot:
             row.entry.flat_rate_price_snapshot !== null ? Number(row.entry.flat_rate_price_snapshot) : null,
           isAuthorized: row.entry.is_authorized,

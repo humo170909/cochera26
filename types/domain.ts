@@ -1,4 +1,5 @@
 import type {
+  FlatRatePeriod,
   PaymentMethod,
   SpotStatus,
   TariffType,
@@ -16,6 +17,8 @@ export interface ActiveEntryInfo {
   coveredBySubscription: boolean;
   subscriberName: string | null;
   flatRateReserved: boolean;
+  /** Solo cuando flatRateReserved: cuál de las dos modalidades se eligió al ingreso. */
+  flatRatePeriod: FlatRatePeriod | null;
   /** Precio de tarifa plana fotografiado al ingreso (null si no aplica). La salida SIEMPRE usa este valor. */
   flatRatePriceSnapshot: number | null;
   isAuthorized: boolean;
@@ -57,7 +60,10 @@ export interface ToleranceSettings {
 }
 
 export interface FlatRateSettings {
+  /** Precio de la tarifa plana DÍA (sujeta a horaLimite/diasAplicacion). */
   precio: number;
+  /** Precio de la tarifa plana NOCHE (sin restricción horaria). */
+  precioNoche: number;
   horaLimite: string;
   diasAplicacion: number[];
   activo: boolean;
