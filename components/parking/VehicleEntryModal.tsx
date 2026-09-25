@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Input";
+import { Field, Input } from "@/components/ui/Input";
 import { Clock } from "@/components/layout/Clock";
 import { useToast } from "@/components/ui/Toaster";
 import { registerVehicleEntry } from "@/actions/vehicle-actions";
@@ -13,40 +13,50 @@ import { ClientTypeCard } from "@/components/parking/ClientTypeCard";
 import { PrintTicketModal } from "@/components/tickets/PrintTicketModal";
 import { isFlatRateEligibleNow } from "@/lib/tariffs";
 import { formatCurrency } from "@/lib/format";
-import { VEHICLE_TYPES, VEHICLE_TYPE_LABELS } from "@/lib/constants";
-import type { FlatRatePeriod, VehicleType } from "@/types/database";
+import { formatShortTimeLima } from "@/lib/datetime";
+import type { FlatRatePeriod } from "@/types/database";
 import type { EntryTicket, FlatRateCapacity, FlatRateSettings } from "@/types/domain";
 
 type TariffMode = "HORA" | "PLANA";
 
-interface FreeSpotOption {
-  id: string;
-  code: string;
+/** Tipo por defecto de todo ingreso rápido — el colaborador ya no lo
+ * selecciona acá; se corrige después con "✏️ Corregir datos" si hace falta
+ * (ver CorrectEntryDataModal). Mismo valor por defecto que ya usaba el
+ * <select> de tipo de vehículo. */
+const DEFAULT_VEHICLE_TYPE = "AUTO" as const;
+
+interface EntryResult {
+  plate: string;
+  spotCode: string;
+  entryAt: string;
 }
 
+/**
+ * Ingreso simplificado: el colaborador/admin solo escribe la PLACA y, si
+ * corresponde, elige la modalidad de tarifa. El espacio lo asigna
+ * automáticamente register_vehicle_entry() (ver 0027) — ya no hay que
+ * tocar un estacionamiento en la grilla. El tipo de vehículo queda en
+ * "Auto" por defecto y se corrige después si hace falta.
+ */
 export function VehicleEntryModal({
   open,
   onClose,
-  fixedSpot,
-  freeSpots,
   flatRateSettings,
   flatRateCapacity,
 }: {
   open: boolean;
   onClose: () => void;
-  fixedSpot?: FreeSpotOption;
-  freeSpots: FreeSpotOption[];
   flatRateSettings: FlatRateSettings;
   flatRateCapacity: FlatRateCapacity;
 }) {
   const { showToast } = useToast();
   const [plate, setPlate] = useState("");
-  const [vehicleType, setVehicleType] = useState<VehicleType>("AUTO");
-  const [spotId, setSpotId] = useState(fixedSpot?.id ?? freeSpots[0]?.id ?? "");
   const [tariffMode, setTariffMode] = useState<TariffMode>("HORA");
   const [flatPeriod, setFlatPeriod] = useState<FlatRatePeriod>("PLANA_DIA");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<EntryResult | null>(null);
+  const [pendingTicket, setPendingTicket] = useState<EntryTicket | null>(null);
   const [ticketToPrint, setTicketToPrint] = useState<EntryTicket | null>(null);
   const { result: plateStatus, loading: lookupLoading } = usePlateStatusLookup(plate);
   // Guardia síncrona contra doble/triple clic en "Registrar ingreso": actúa
@@ -71,6 +81,8 @@ export function VehicleEntryModal({
     setPlate("");
     setTariffMode("HORA");
     setError(null);
+    setResult(null);
+    setPendingTicket(null);
     onClose();
   };
 
@@ -83,42 +95,30 @@ export function VehicleEntryModal({
     e.preventDefault();
     if (submittingRef.current) return;
     setError(null);
-    const targetSpotId = fixedSpot?.id ?? spotId;
-
-    if (!targetSpotId) {
-      setError("Selecciona un estacionamiento.");
-      return;
-    }
 
     submittingRef.current = true;
     startTransition(async () => {
       try {
         const useFlatRate = tariffMode === "PLANA" && flatRateOfferable && flatRateHasCapacity;
-        const result = await registerVehicleEntry({
+        const res = await registerVehicleEntry({
           plate,
-          vehicleType,
-          spotId: targetSpotId,
+          vehicleType: DEFAULT_VEHICLE_TYPE,
           useFlatRate,
           flatRatePeriod: useFlatRate ? flatPeriod : null,
         });
-        if (result.error || !result.data) {
-          setError(result.error ?? "No se pudo registrar el ingreso.");
+        if (res.error || !res.data) {
+          setError(res.error ?? "No se pudo registrar el ingreso.");
           return;
         }
 
-        const { entryId, spotCode } = result.data;
-        close();
+        const { entryId, spotCode, entryAt } = res.data;
+        setResult({ plate: plate.trim().toUpperCase(), spotCode: spotCode || "—", entryAt });
 
         // Ticket solo para HORA/PLANA: get_entry_ticket() devuelve null para
         // abonado/autorizado, que nunca deben mostrar el paso de impresión.
         const ticketResult = await getEntryTicket(entryId);
         if (ticketResult.data) {
-          setTicketToPrint(ticketResult.data);
-        } else {
-          // spotCode viene del servidor: para un abonado con espacio fijo
-          // puede no coincidir con el espacio que se tocó en la grilla
-          // (register_vehicle_entry lo redirige automáticamente al suyo).
-          showToast(`Ingreso registrado en ${spotCode || "el estacionamiento"}.`, "success");
+          setPendingTicket(ticketResult.data);
         }
       } finally {
         submittingRef.current = false;
@@ -126,163 +126,164 @@ export function VehicleEntryModal({
     });
   };
 
+  const onFinish = () => {
+    if (pendingTicket) {
+      setTicketToPrint(pendingTicket);
+    } else {
+      showToast("Ingreso registrado correctamente.", "success");
+    }
+    close();
+  };
+
   return (
     <>
     <Modal open={open} onClose={close} maxWidth="max-w-md">
-      <form onSubmit={onSubmit} className="p-6">
-        <div className="mb-5 flex items-start justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-foreground">Registrar ingreso</h3>
-            {fixedSpot && (
-              <p className="text-sm text-muted">
-                Estacionamiento <span className="font-semibold text-foreground">{fixedSpot.code}</span>
-              </p>
+      {!result ? (
+        <form onSubmit={onSubmit} className="p-6">
+          <div className="mb-5 flex items-start justify-between">
+            <h3 className="text-xl font-bold text-foreground">🚗 Registrar ingreso</h3>
+            <Clock />
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <Field label="Placa" htmlFor="plate">
+              <Input
+                id="plate"
+                autoFocus
+                value={plate}
+                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                placeholder="ABC-123"
+                required
+                className="text-lg font-bold tracking-wider"
+              />
+            </Field>
+
+            <ClientTypeCard plateEntered={plate.trim().length >= 5} loading={lookupLoading} result={plateStatus} />
+
+            {!isFreeEntry && (
+              <div>
+                <p className="mb-1.5 text-sm font-medium text-foreground">Tarifa</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTariffMode("HORA")}
+                    className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
+                      tariffMode === "HORA"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-surface text-foreground hover:bg-surface-2"
+                    }`}
+                  >
+                    Por hora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectFlatRate}
+                    disabled={!flatRateOfferable}
+                    className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      tariffMode === "PLANA"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-surface text-foreground hover:bg-surface-2"
+                    }`}
+                  >
+                    Tarifa plana
+                  </button>
+                </div>
+
+                {tariffMode === "PLANA" && flatRateOfferable && (
+                  <div className="mt-2">
+                    {flatRateHasCapacity ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFlatPeriod("PLANA_DIA")}
+                            disabled={!dayEligibleNow}
+                            className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                              flatPeriod === "PLANA_DIA"
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-surface text-foreground hover:bg-surface-2"
+                            }`}
+                          >
+                            ☀ Día
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFlatPeriod("PLANA_NOCHE")}
+                            className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
+                              flatPeriod === "PLANA_NOCHE"
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-surface text-foreground hover:bg-surface-2"
+                            }`}
+                          >
+                            ☾ Noche
+                          </button>
+                        </div>
+                        {!dayEligibleNow && (
+                          <p className="mt-1.5 text-xs text-muted">
+                            Tarifa plana día no disponible en este horario — se ofrece solo tarifa plana noche.
+                          </p>
+                        )}
+                        <p className="mt-1.5 text-xs font-semibold text-foreground">
+                          {formatCurrency(flatPeriod === "PLANA_NOCHE" ? flatRateSettings.precioNoche : flatRateSettings.precio)}
+                          {" · "}Cupos: {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo}
+                        </p>
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-danger/30 bg-danger-bg px-4 py-3">
+                        <p className="text-sm font-bold text-danger">🔴 TARIFA PLANA COMPLETA</p>
+                        <p className="text-xs text-danger">
+                          {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo} vehículos — sin cupos disponibles
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <Clock />
-        </div>
 
-        <div className="flex flex-col gap-4">
-          <Field label="Placa" htmlFor="plate">
-            <Input
-              id="plate"
-              autoFocus
-              value={plate}
-              onChange={(e) => setPlate(e.target.value.toUpperCase())}
-              placeholder="ABC-123"
-              required
-              className="text-lg font-bold tracking-wider"
-            />
-          </Field>
-
-          <Field label="Tipo de vehículo" htmlFor="vehicleType">
-            <Select
-              id="vehicleType"
-              value={vehicleType}
-              onChange={(e) => setVehicleType(e.target.value as VehicleType)}
-            >
-              {VEHICLE_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {VEHICLE_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <ClientTypeCard plateEntered={plate.trim().length >= 5} loading={lookupLoading} result={plateStatus} />
-
-          {!isFreeEntry && (
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-foreground">Tarifa</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTariffMode("HORA")}
-                  className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
-                    tariffMode === "HORA"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-surface text-foreground hover:bg-surface-2"
-                  }`}
-                >
-                  Por hora
-                </button>
-                <button
-                  type="button"
-                  onClick={selectFlatRate}
-                  disabled={!flatRateOfferable}
-                  className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    tariffMode === "PLANA"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-surface text-foreground hover:bg-surface-2"
-                  }`}
-                >
-                  Tarifa plana
-                </button>
-              </div>
-
-              {tariffMode === "PLANA" && flatRateOfferable && (
-                <div className="mt-2">
-                  {flatRateHasCapacity ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFlatPeriod("PLANA_DIA")}
-                          disabled={!dayEligibleNow}
-                          className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                            flatPeriod === "PLANA_DIA"
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-surface text-foreground hover:bg-surface-2"
-                          }`}
-                        >
-                          ☀ Tarifa plana día
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFlatPeriod("PLANA_NOCHE")}
-                          className={`h-11 rounded-xl border-2 text-sm font-bold transition-colors ${
-                            flatPeriod === "PLANA_NOCHE"
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-surface text-foreground hover:bg-surface-2"
-                          }`}
-                        >
-                          ☾ Tarifa plana noche
-                        </button>
-                      </div>
-                      {!dayEligibleNow && (
-                        <p className="mt-1.5 text-xs text-muted">
-                          Tarifa plana día no disponible en este horario — se ofrece solo tarifa plana noche.
-                        </p>
-                      )}
-                      <p className="mt-1.5 text-xs font-semibold text-foreground">
-                        {formatCurrency(flatPeriod === "PLANA_NOCHE" ? flatRateSettings.precioNoche : flatRateSettings.precio)}
-                        {" · "}Cupos: {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="rounded-xl border border-danger/30 bg-danger-bg px-4 py-3">
-                      <p className="text-sm font-bold text-danger">🔴 TARIFA PLANA COMPLETA</p>
-                      <p className="text-xs text-danger">
-                        {flatRateCapacity.activos} / {flatRateCapacity.cupoMaximo} vehículos — sin cupos disponibles
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+          {error && (
+            <div className="mt-4 rounded-xl bg-danger-bg px-4 py-3 text-sm font-medium text-danger">
+              {error}
             </div>
           )}
 
-          {!fixedSpot && (
-            <Field label="Estacionamiento" htmlFor="spotId">
-              <Select id="spotId" value={spotId} onChange={(e) => setSpotId(e.target.value)} required>
-                <option value="" disabled>
-                  Selecciona un espacio libre
-                </option>
-                {freeSpots.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.code}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          )}
-        </div>
-
-        {error && (
-          <div className="mt-4 rounded-xl bg-danger-bg px-4 py-3 text-sm font-medium text-danger">
-            {error}
+          <div className="mt-6 flex gap-3">
+            <Button type="button" variant="secondary" fullWidth onClick={close} disabled={pending}>
+              Cancelar
+            </Button>
+            <Button type="submit" fullWidth disabled={pending}>
+              {pending ? "Registrando..." : "Registrar ingreso"}
+            </Button>
           </div>
-        )}
+        </form>
+      ) : (
+        <div className="flex flex-col items-center gap-3 p-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-success-bg text-3xl text-success">
+            ✓
+          </div>
+          <p className="text-lg font-bold text-foreground">Ingreso registrado correctamente</p>
 
-        <div className="mt-6 flex gap-3">
-          <Button type="button" variant="secondary" fullWidth onClick={close} disabled={pending}>
-            Cancelar
-          </Button>
-          <Button type="submit" fullWidth disabled={pending}>
-            {pending ? "Registrando..." : "Registrar ingreso"}
+          <dl className="mt-2 flex w-full flex-col gap-2 rounded-2xl bg-surface-2 p-4 text-left text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Placa</dt>
+              <dd className="font-bold text-foreground">{result.plate}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Espacio asignado</dt>
+              <dd className="font-bold text-foreground">{result.spotCode}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Hora</dt>
+              <dd className="font-mono font-bold text-foreground">{formatShortTimeLima(result.entryAt)}</dd>
+            </div>
+          </dl>
+
+          <Button size="lg" fullWidth className="mt-4" onClick={onFinish}>
+            {pendingTicket ? "Continuar e imprimir ticket" : "Listo"}
           </Button>
         </div>
-      </form>
+      )}
     </Modal>
 
     <PrintTicketModal ticket={ticketToPrint} onClose={() => setTicketToPrint(null)} />

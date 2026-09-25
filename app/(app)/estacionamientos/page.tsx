@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
 import { getParkingSpots } from "@/services/parking";
-import { getTariffMap, getToleranceSettings, getFlatRateSettings, getFlatRateCapacity } from "@/services/tariffs";
+import { getTariffMap, getToleranceSettings, getFlatRateSettings } from "@/services/tariffs";
 import { ParkingGrid } from "@/components/parking/ParkingGrid";
 import { TOTAL_PARKING_SPOTS } from "@/lib/constants";
 
 export const metadata: Metadata = { title: "Estacionamientos" };
 
 export default async function EstacionamientosPage() {
-  const [spots, tariffMap, tolerance, flatRate, flatRateCapacity] = await Promise.all([
+  const [spots, tariffMap, tolerance, flatRate] = await Promise.all([
     getParkingSpots(),
     getTariffMap(),
     getToleranceSettings(),
     getFlatRateSettings(),
-    getFlatRateCapacity(),
   ]);
   const occupied = spots.filter((s) => s.status === "OCUPADO").length;
 
@@ -39,7 +38,6 @@ export default async function EstacionamientosPage() {
         tariffMap={tariffMap}
         tolerance={tolerance}
         flatRate={flatRate}
-        flatRateCapacity={flatRateCapacity}
         mode="view"
       />
     </div>

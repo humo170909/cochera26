@@ -26,7 +26,7 @@ export interface ActionResult<T = undefined> {
 
 export async function registerVehicleEntry(
   input: unknown
-): Promise<ActionResult<{ entryId: string; spotCode: string }>> {
+): Promise<ActionResult<{ entryId: string; spotCode: string; entryAt: string }>> {
   await requireAuth();
 
   const parsed = vehicleEntrySchema.safeParse(input);
@@ -39,20 +39,20 @@ export async function registerVehicleEntry(
     .rpc("register_vehicle_entry", {
       p_plate: parsed.data.plate,
       p_vehicle_type: parsed.data.vehicleType,
-      p_spot_id: parsed.data.spotId,
+      p_spot_id: parsed.data.spotId ?? null,
       p_use_flat_rate: parsed.data.useFlatRate,
       p_flat_rate_period: parsed.data.useFlatRate ? (parsed.data.flatRatePeriod ?? null) : null,
     })
     .single()
-    .returns<{ id: string; parking_spot_id: string }>();
+    .returns<{ id: string; parking_spot_id: string; entry_at: string }>();
 
   if (error || !data) {
     return { error: error?.message ?? "No se pudo registrar el ingreso." };
   }
 
   // El espacio realmente ocupado puede no ser el que se tocó en la grilla:
-  // si la placa es de un abonado con espacio fijo, register_vehicle_entry()
-  // lo redirige automáticamente a su espacio asignado (ver 0017).
+  // si la placa es de un abonado con espacio fijo, o si no se especificó
+  // ninguno, register_vehicle_entry() lo asigna automáticamente (0017/0027).
   const { data: spotRow } = await supabase
     .from("parking_spots")
     .select("code")
@@ -63,7 +63,7 @@ export async function registerVehicleEntry(
   revalidatePath("/estacionamientos");
   revalidatePath("/ingreso");
   revalidatePath("/salida");
-  return { data: { entryId: data.id, spotCode: spotRow?.code ?? "" } };
+  return { data: { entryId: data.id, spotCode: spotRow?.code ?? "", entryAt: data.entry_at } };
 }
 
 export async function registerVehicleExit(

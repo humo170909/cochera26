@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,7 +46,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es-PE" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* next/script con strategy="beforeInteractive" (en vez de un
+            <script> crudo): Next.js lo inyecta en <head> por su cuenta,
+            fuera de la reconciliación normal de React. Un <script> crudo
+            dentro del árbol de React dispara "Encountered a script tag
+            while rendering..." apenas React necesita regenerar ese
+            subárbol en el cliente (por ejemplo, como efecto colateral de
+            CUALQUIER mismatch de hidratación en cualquier otro componente
+            de la página) — con next/script eso no ocurre. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased font-sans`}

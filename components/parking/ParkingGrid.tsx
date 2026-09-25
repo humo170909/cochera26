@@ -2,42 +2,38 @@
 
 import { useState } from "react";
 import { ParkingSpotTile } from "@/components/parking/ParkingSpotTile";
-import { VehicleEntryModal } from "@/components/parking/VehicleEntryModal";
 import { SpotDetailsModal } from "@/components/parking/SpotDetailsModal";
-import { PaymentModal, type ExitTarget } from "@/components/parking/PaymentModal";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
-import type {
-  ParkingSpotWithEntry,
-  FlatRateCapacity,
-  FlatRateSettings,
-  ToleranceSettings,
-} from "@/types/domain";
+import type { ParkingSpotWithEntry, FlatRateSettings, ToleranceSettings } from "@/types/domain";
 import type { VehicleType } from "@/types/database";
 
 /**
- * "view": /estacionamientos — solo consulta, ningún espacio ejecuta acciones.
- * "entry": /ingreso — los espacios libres abren el formulario de ingreso;
- * los ocupados solo muestran información de solo lectura.
- * "exit": /salida — los espacios ocupados abren directamente el cobro de
- * salida (toda la tarjeta es el botón, sin paso intermedio); los libres no
- * ejecutan ninguna acción.
+ * "view": /estacionamientos y /ingreso — solo consulta, los espacios
+ * ocupados muestran su detalle (incluida la corrección de datos); el
+ * espacio para un nuevo ingreso ya no se elige acá, lo asigna
+ * automáticamente register_vehicle_entry() (ver VehicleEntryModal, 0027).
+ * "exit": /salida — los espacios ocupados invocan `onSelectExit` (el cobro
+ * de salida ya no vive acá: SalidaWorkspace es dueño del PaymentModal para
+ * poder alimentarlo también desde la búsqueda por placa, ver
+ * buildExitTarget en lib/exitTarget.ts). Los libres no ejecutan ninguna
+ * acción en ningún modo.
  */
-export type ParkingGridMode = "view" | "entry" | "exit";
+export type ParkingGridMode = "view" | "exit";
 
 export function ParkingGrid({
   spots,
   tariffMap,
   tolerance,
   flatRate,
-  flatRateCapacity,
   mode,
+  onSelectExit,
 }: {
   spots: ParkingSpotWithEntry[];
   tariffMap: Record<VehicleType, number>;
   tolerance: ToleranceSettings;
   flatRate: FlatRateSettings;
-  flatRateCapacity: FlatRateCapacity;
   mode: ParkingGridMode;
+  onSelectExit?: (spot: ParkingSpotWithEntry) => void;
 }) {
   // "vehicle_entries" se agregó porque update_active_entry_details()
   // (corrección de placa/tipo) solo toca esa tabla, nunca parking_spots —
@@ -45,31 +41,7 @@ export function ParkingGrid({
   // recarga manual de la página.
   useRealtimeRefresh(["parking_spots", "vehicle_entries"]);
 
-  const [entryTarget, setEntryTarget] = useState<{ id: string; code: string } | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<ParkingSpotWithEntry | null>(null);
-  const [exitTarget, setExitTarget] = useState<ExitTarget | null>(null);
-
-  const freeSpots = spots.filter((s) => s.status === "LIBRE").map((s) => ({ id: s.id, code: s.code }));
-
-  const openExit = (spot: ParkingSpotWithEntry) => {
-    const entry = spot.activeEntry;
-    if (!entry) return;
-    setExitTarget({
-      entryId: entry.id,
-      plate: entry.plate,
-      spotCode: spot.code,
-      entryAt: entry.entryAt,
-      pricePerHour: tariffMap[entry.vehicleType] ?? 0,
-      vehicleType: entry.vehicleType,
-      coveredBySubscription: entry.coveredBySubscription,
-      subscriberName: entry.subscriberName,
-      flatRateReserved: entry.flatRateReserved,
-      flatRatePeriod: entry.flatRatePeriod,
-      flatRatePriceSnapshot: entry.flatRatePriceSnapshot,
-      isAuthorized: entry.isAuthorized,
-      authorizedOwnerName: entry.authorizedOwnerName,
-    });
-  };
 
   return (
     <>
@@ -78,33 +50,21 @@ export function ParkingGrid({
           <ParkingSpotTile
             key={spot.id}
             spot={spot}
-            interactive={mode === "entry" ? true : spot.status === "OCUPADO"}
+            interactive={spot.status === "OCUPADO"}
             onClick={() => {
               if (spot.status === "OCUPADO") {
                 if (mode === "exit") {
-                  openExit(spot);
+                  onSelectExit?.(spot);
                 } else {
                   setDetailsTarget(spot);
                 }
-              } else if (mode === "entry") {
-                setEntryTarget({ id: spot.id, code: spot.code });
               }
-              // mode === "view" | "exit" + LIBRE: solo consulta, sin acción.
+              // LIBRE: solo consulta, sin acción (el ingreso ya no se
+              // dispara tocando un espacio — ver VehicleEntryModal).
             }}
           />
         ))}
       </div>
-
-      {mode === "entry" && (
-        <VehicleEntryModal
-          open={!!entryTarget}
-          fixedSpot={entryTarget ?? undefined}
-          freeSpots={freeSpots}
-          flatRateSettings={flatRate}
-          flatRateCapacity={flatRateCapacity}
-          onClose={() => setEntryTarget(null)}
-        />
-      )}
 
       {mode !== "exit" && (
         <SpotDetailsModal
@@ -116,10 +76,6 @@ export function ParkingGrid({
           flatRate={flatRate}
           onClose={() => setDetailsTarget(null)}
         />
-      )}
-
-      {mode === "exit" && (
-        <PaymentModal target={exitTarget} tolerance={tolerance} flatRate={flatRate} onClose={() => setExitTarget(null)} />
       )}
     </>
   );

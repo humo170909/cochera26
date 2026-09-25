@@ -53,7 +53,10 @@ export const flatRatePeriodSchema = z.enum(["PLANA_DIA", "PLANA_NOCHE"]);
 export const vehicleEntrySchema = z.object({
   plate: plateSchema,
   vehicleType: vehicleTypeSchema,
-  spotId: z.uuid("Selecciona un estacionamiento válido."),
+  // Opcional: si se omite, register_vehicle_entry() asigna automáticamente
+  // el primer espacio libre (ver 0027). Se mantiene para el caso admin/
+  // compatibilidad de elegir un espacio explícito.
+  spotId: z.uuid("Selecciona un estacionamiento válido.").optional(),
   useFlatRate: z.boolean().default(false),
   flatRatePeriod: flatRatePeriodSchema.optional().nullable(),
 });

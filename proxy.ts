@@ -6,6 +6,23 @@ import { NextResponse, type NextRequest } from "next/server";
 // redirigir rápido. La verificación segura real ocurre en cada Server
 // Component/Server Action vía lib/auth/dal.ts (requireAuth/requireRole),
 // que sí valida contra el servidor de Supabase Auth.
+//
+// AUDITORÍA DE RENDIMIENTO: acá abajo se usa getSession() a propósito, NO
+// getUser(). getUser() hace una llamada de red al servidor de Auth de
+// Supabase en CADA invocación — y este proxy corre en TODA navegación de
+// la app (el matcher de abajo solo excluye estáticos/imágenes). Con
+// getUser() aquí, cada clic entre secciones pagaba ese round-trip de red
+// ANTES de que la página pudiera empezar a renderizar: es la causa más
+// probable de la lentitud percibida al cambiar de sección.
+// getSession() solo decodifica la cookie localmente (sin red) — es
+// exactamente lo que el comentario de arriba ya decía que debía pasar
+// ("solo lee la cookie de sesión"), la implementación simplemente no lo
+// hacía. Esto NO reduce la seguridad: esta verificación siempre fue solo
+// para la redirección optimista; la única verificación que protege datos
+// reales es requireAuth()/requireRole() (que sí sigue usando getUser()) en
+// cada Server Component/Action, más RLS en Postgres como última barrera.
+// Un usuario con cookie vencida/manipulada seguirá siendo rechazado ahí,
+// como siempre.
 
 const PUBLIC_PATHS = ["/login"];
 
@@ -34,18 +51,18 @@ export async function proxy(request: NextRequest) {
   );
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
   const path = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.includes(path);
 
-  if (!user && !isPublicPath) {
+  if (!session && !isPublicPath) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && isPublicPath) {
+  if (session && isPublicPath) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }

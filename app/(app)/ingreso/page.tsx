@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getParkingSpots } from "@/services/parking";
 import { getTariffMap, getToleranceSettings, getFlatRateSettings, getFlatRateCapacity } from "@/services/tariffs";
 import { ParkingGrid } from "@/components/parking/ParkingGrid";
+import { RegisterEntryButton } from "@/components/parking/RegisterEntryButton";
 
 export const metadata: Metadata = { title: "Registrar ingreso" };
 
@@ -17,12 +18,14 @@ export default async function IngresoPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-foreground">Registrar ingreso</h1>
-        <p className="text-sm text-muted">
-          Toca un estacionamiento <span className="font-semibold text-success">libre</span> para registrar
-          el ingreso de un vehículo. Hay {free} espacios disponibles.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-foreground">Registrar ingreso</h1>
+          <p className="text-sm text-muted">
+            El espacio se asigna automáticamente. Hay {free} espacios disponibles.
+          </p>
+        </div>
+        <RegisterEntryButton flatRateSettings={flatRate} flatRateCapacity={flatRateCapacity} />
       </div>
 
       <ParkingGrid
@@ -30,8 +33,7 @@ export default async function IngresoPage() {
         tariffMap={tariffMap}
         tolerance={tolerance}
         flatRate={flatRate}
-        flatRateCapacity={flatRateCapacity}
-        mode="entry"
+        mode="view"
       />
     </div>
   );

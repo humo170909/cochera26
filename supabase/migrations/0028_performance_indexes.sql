@@ -1,0 +1,27 @@
+-- =============================================================================
+-- AUDITORÍA DE RENDIMIENTO — índice puntual
+--
+-- Se revisaron TODAS las columnas usadas en WHERE/JOIN/ORDER BY de cada RPC
+-- y de cada servicio (services/*.ts) contra los índices ya existentes
+-- (ver 0001, 0003, 0004, 0006, 0009, 0011, 0012, 0017). El proyecto ya está
+-- ampliamente indexado: plate_normalizada, status, fecha_vencimiento,
+-- estado, entry_at/exit_at/used_at/occurred_at/created_at,
+-- cash_register_id, assigned_spot_id, etc. ya tienen índice.
+--
+-- Único hallazgo real: /historial filtra por trabajador
+-- (`v_vehicle_history` -> `worker_id`, que es `vehicle_exits.registered_by`)
+-- y esa columna no tenía índice. Es un filtro de igualdad exacta (no un
+-- ilike), así que un índice btree normal SÍ acelera esta consulta a medida
+-- que crezca el historial.
+--
+-- Deliberadamente NO se crea un índice para el filtro de placa de
+-- /historial (`ilike plate_normalizada, '%...%'`): es una búsqueda por
+-- SUBCADENA (comodín a ambos lados), que un índice btree normal no puede
+-- acelerar en absoluto — solo ayudaría un índice de trigramas (extensión
+-- pg_trgm + índice GIN), que es un cambio de infraestructura más invasivo
+-- (habilitar una extensión) para un beneficio que hoy, con el volumen de
+-- datos de una sola cochera, no se justifica. Queda documentado como
+-- recomendación a futuro en el informe, no como índice creado a ciegas.
+-- =============================================================================
+
+create index if not exists ix_vehicle_exits_registered_by on public.vehicle_exits(registered_by);
